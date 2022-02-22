@@ -25,6 +25,7 @@ struct lexer {
 	enum lexer_state {
 		normal,
 		quote,
+		empty,
 		escape,
 		finished,
 		memory_err,
@@ -40,6 +41,7 @@ void lexer_delete(struct lexer *l);
 void lexer_cut(struct lexer *l);
 void lexer_step_normal(struct lexer *l, char c);
 void lexer_step_quote(struct lexer *l, char c);
+void lexer_step_empty(struct lexer *l, char c);
 void lexer_step_escape(struct lexer *l, char c);
 struct word_item *lexer_get_list(struct lexer *l);
 

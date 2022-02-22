@@ -117,7 +117,7 @@ lexer_step_quote(struct lexer *l, char c)
 		l->state = quote_err;
 		break;
 	case '"':
-		l->state = normal;
+		l->state = l->buf->bufsz ? normal : empty;
 		break;
 	case '\\':
 		l->prev_state = l->state;
@@ -126,6 +126,24 @@ lexer_step_quote(struct lexer *l, char c)
 	default:
 		if (!buffer_add(l->buf, c))
 			l->state = memory_err;
+	}
+}
+
+void
+lexer_step_empty(struct lexer *l, char c)
+{
+	switch (c) {
+		case 0:
+		case ' ':
+		case '\t':
+			if (!buffer_add(l->buf, 0)) {
+				l->state = memory_err;
+				return;
+			}
+			/* fall through */
+		default:
+			l->state = normal;
+			lexer_step_normal(l, c);
 	}
 }
 
@@ -173,6 +191,9 @@ split_line(const char *line)
 			break;
 		case quote:
 			lexer_step_quote(l, *line);
+			break;
+		case empty:
+			lexer_step_empty(l, *line);
 			break;
 		case escape:
 			lexer_step_escape(l, *line);
