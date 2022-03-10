@@ -239,7 +239,7 @@ struct token *
 tokenize(const char *line)
 {
 	struct lexer *lex;
-	struct token *tok;
+	struct token *toks;
 	lex = lexer_new();
 	if (!lex)
 		return NULL;
@@ -258,9 +258,9 @@ tokenize(const char *line)
 			lexer_step_escape(lex, *line);
 			break;
 		case finished:
-			tok = lexer_get_tokens(lex);
+			toks = lexer_get_tokens(lex);
 			lexer_delete(lex);
-			return tok;
+			return toks;
 		case error:
 			lexer_step_error(lex);
 			lexer_delete(lex);

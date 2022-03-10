@@ -5,40 +5,96 @@
 #include "parse.h"
 #include "exec.h"
 
-/* This function is a MESS */
+struct argbuf {
+	int argc;
+	char **argv;
+	int cap;
+};
+
+struct argbuf *
+argbuf_new()
+{
+	struct argbuf *arg;
+	arg = malloc(sizeof(*arg));
+	if (!arg)
+		return NULL;
+	arg->argc = 0;
+	arg->argv = NULL;
+	arg->cap = 0;
+	return arg;
+}
+
+void
+argbuf_delete(struct argbuf *args)
+{
+	if (args->argv) {
+		int i;
+		for (i = 0; args->argv[i]; i++)
+			free(args->argv[i]);
+		free(args->argv);
+	}
+	free(args);
+}
+
+int
+argbuf_append(struct argbuf *args, const char *arg)
+{
+	char **tmp;
+	if (args->argc > args->cap - 1) {
+		args->cap += 24;
+		tmp = realloc(args->argv, args->cap * sizeof(*args->argv));
+		if (!tmp)
+			return 0;
+		args->argv = tmp;
+	}
+	tmp = args->argv + args->argc;
+	*tmp = malloc(strlen(arg) + 1);
+	if (!*tmp)
+		return 0;
+	strcpy(*tmp, arg);
+	*(tmp + 1) = NULL;
+	args->argc++;
+	return 1;
+}
+
+char **
+argbuf_get_argv(struct argbuf *args)
+{
+	char **tmp;
+	tmp = args->argv;
+	args->argc = 0;
+	args->argv = NULL;
+	args->cap = 0;
+	return tmp;
+}
+
 struct task *
 parse(const struct token *head)
 {
-	char **args;
-	int i, argc;
-	argc = token_list_len(head);
+	struct argbuf *args;
+	int argc;
+	char **argv;
+	args = argbuf_new();
+	if (!args)
+		return NULL;
+	while (head) {
+		switch (head->type) {
+		case tok_word:
+			if (!argbuf_append(args, head->word)) {
+				argbuf_delete(args);
+				return NULL;
+			}
+			break;
+		default:
+			fputs("error: not implemented!\n", stderr);
+			return NULL;
+		}
+		head = head->next;
+	}
+	argc = args->argc;
+	argv = argbuf_get_argv(args);
+	argbuf_delete(args);
 	if (argc < 1)
 		return NULL;
-	args = malloc((argc + 1) * sizeof(*args));
-	if (!args) {
-		fputs("error: failed to allocate memory\n", stderr);
-		return NULL;
-	}
-	for (i = 0; i < argc; head = head->next, i++) {
-		if (head->type != tok_word) {
-			int j;
-			fputs("error: feature not implemented\n", stderr);
-			for (j = 0; j < i; j++)
-				free(args[j]);
-			free(args);
-			return NULL;
-		}
-		args[i] = malloc(strlen(head->word) + 1);
-		if (!args[i]) {
-			int j;
-			fputs("error: failed to allocate memory\n", stderr);
-			for (j = 0; j < i; j++)
-				free(args[j]);
-			free(args);
-			return NULL;
-		}
-		strcpy(args[i], head->word);
-	}
-	args[argc] = NULL;
-	return task_new(argc, args);
+	return task_new(argc, argv);
 }
