@@ -9,6 +9,7 @@ struct word_item {
 struct word_item * word_item_new(char *word);
 void word_item_delete(struct word_item *w);
 void word_list_delete(struct word_item *head);
+int word_list_len(const struct word_item *head);
 
 struct buffer {
 	char *buf;
@@ -48,4 +49,4 @@ struct word_item *lexer_get_list(struct lexer *l);
 char * read_line();
 struct word_item * split_line(const char *line);
 
-#endif // LEX_INCLUDED
+#endif /* LEX_INCLUDED */

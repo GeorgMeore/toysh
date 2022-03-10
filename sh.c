@@ -1,22 +1,23 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include "lex.h"
+#include "parse.h"
+#include "exec.h"
 
-void word_list_print(const struct word_item *head)
-{
-	while (head) {
-		printf("[%s]\n", head->word);
-		head = head->next;
-	}
-}
-
-int main()
+int
+main(void)
 {
 	struct word_item *words;
 	char *line;
 	while ((line = read_line())) {
+		struct task *cmd;
 		words = split_line(line);
-		word_list_print(words);
+		cmd = parse_words(words);
+		if (cmd) {
+			task_exec(cmd);
+			task_delete(cmd);
+		}
 		word_list_delete(words);
 		free(line);
 	}

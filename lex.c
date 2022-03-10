@@ -33,6 +33,15 @@ word_list_delete(struct word_item *head)
 	}
 }
 
+int
+word_list_len(const struct word_item *head)
+{
+	int len;
+	for (len = 0; head; len++)
+		head = head->next;
+	return len;
+}
+
 struct lexer *
 lexer_new()
 {
