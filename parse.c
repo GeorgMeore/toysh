@@ -13,7 +13,7 @@ parse_words(const struct word_item *head)
 	argc = word_list_len(head);
 	if (argc < 1)
 		return NULL;
-	args = malloc(argc*sizeof(*args) + 1);
+	args = malloc((argc + 1) * sizeof(*args));
 	if (!args) {
 		fputs("error: failed to allocate memory\n", stderr);
 		return NULL;
