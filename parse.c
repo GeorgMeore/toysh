@@ -5,12 +5,13 @@
 #include "parse.h"
 #include "exec.h"
 
+/* This function is a MESS */
 struct task *
-parse_words(const struct word_item *head)
+parse(const struct token *head)
 {
 	char **args;
 	int i, argc;
-	argc = word_list_len(head);
+	argc = token_list_len(head);
 	if (argc < 1)
 		return NULL;
 	args = malloc((argc + 1) * sizeof(*args));
@@ -19,6 +20,14 @@ parse_words(const struct word_item *head)
 		return NULL;
 	}
 	for (i = 0; i < argc; head = head->next, i++) {
+		if (head->type != tok_word) {
+			int j;
+			fputs("error: feature not implemented\n", stderr);
+			for (j = 0; j < i; j++)
+				free(args[j]);
+			free(args);
+			return NULL;
+		}
 		args[i] = malloc(strlen(head->word) + 1);
 		if (!args[i]) {
 			int j;

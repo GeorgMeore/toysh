@@ -4,6 +4,6 @@
 #include "lex.h"
 #include "exec.h"
 
-struct task *parse_words(const struct word_item *head);
+struct task *parse(const struct token *head);
 
 #endif /* PARSE_INCLUDED */

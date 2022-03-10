@@ -3,38 +3,41 @@
 #include <string.h>
 #include "lex.h"
 
-struct word_item *
-word_item_new(char *word)
+/* word must be malloc-allocated string
+ * ownership of word is transferred here */
+struct token *
+token_new(enum token_type type, char *word)
 {
-	struct word_item *w;
-	w = malloc(sizeof(*w));
-	if (!w)
+	struct token *tok;
+	tok = malloc(sizeof(*tok));
+	if (!tok)
 		return NULL;
-	w->word = word;
-	w->next = NULL;
-	return w;
+	tok->type = type;
+	tok->word = word;
+	tok->next = NULL;
+	return tok;
 }
 
 void
-word_item_delete(struct word_item *w)
+token_delete(struct token *w)
 {
 	free(w->word);
 	free(w);
 }
 
 void
-word_list_delete(struct word_item *head)
+token_list_delete(struct token *head)
 {
-	struct word_item *tmp;
+	struct token *tmp;
 	while (head) {
 		tmp = head->next;
-		word_item_delete(head);
+		token_delete(head);
 		head = tmp;
 	}
 }
 
 int
-word_list_len(const struct word_item *head)
+token_list_len(const struct token *head)
 {
 	int len;
 	for (len = 0; head; len++)
@@ -67,31 +70,49 @@ void
 lexer_delete(struct lexer *l)
 {
 	buffer_delete(l->buf);
-	word_list_delete(l->head);
+	token_list_delete(l->head);
 	free(l);
 }
 
 void
-lexer_cut(struct lexer *l)
+lexer_append_token(struct lexer *lex, struct token *tok)
 {
-	if (l->buf->bufsz) {
+	if (lex->tail) {
+		lex->tail->next = tok;
+		lex->tail = tok;
+	}
+	else {
+		lex->head = tok;
+		lex->tail = tok;
+	}
+}
+
+void
+lexer_cut(struct lexer *lex)
+{
+	if (lex->buf->bufsz) {
 		char *word;
-		struct word_item *w;
-		word = buffer_get_str(l->buf);
-		w = word_item_new(word);
-		if (!w) {
-			l->state = memory_err;
+		struct token *tok;
+		word = buffer_get_str(lex->buf);
+		tok = token_new(tok_word, word);
+		if (!tok) {
+			lex->state = memory_err;
 			return;
 		}
-		if (l->tail) {
-			l->tail->next = w;
-			l->tail = w;
-		}
-		else {
-			l->head = w;
-			l->tail = w;
-		}
+		lexer_append_token(lex, tok);
 	}
+}
+
+void
+lexer_handle_separator(struct lexer *lex, char sep)
+{
+	struct token *tok;
+	tok = token_new(sep, NULL);
+	if (!tok) {
+		lex->state = memory_err;
+		return;
+	}
+	lexer_append_token(lex, tok);
 }
 
 void
@@ -111,6 +132,16 @@ lexer_step_normal(struct lexer *l, char c)
 	case '\\':
 		l->prev_state = l->state;
 		l->state = escape;
+		break;
+	case ';':
+	case '(':
+	case ')':
+	case '&':
+	case '|':
+	case '>':
+	case '<':
+		lexer_cut(l);
+		lexer_handle_separator(l, c);
 		break;
 	default:
 		if (!buffer_add(l->buf, c))
@@ -142,17 +173,17 @@ void
 lexer_step_empty(struct lexer *l, char c)
 {
 	switch (c) {
-		case 0:
-		case ' ':
-		case '\t':
-			if (!buffer_add(l->buf, 0)) {
-				l->state = memory_err;
-				return;
-			}
-			/* fall through */
-		default:
-			l->state = normal;
-			lexer_step_normal(l, c);
+	case 0:
+	case ' ':
+	case '\t':
+		if (!buffer_add(l->buf, 0)) {
+			l->state = memory_err;
+			return;
+		}
+		/* fall through */
+	default:
+		l->state = normal;
+		lexer_step_normal(l, c);
 	}
 }
 
@@ -170,10 +201,10 @@ lexer_step_escape(struct lexer *l, char c)
 	}
 }
 
-struct word_item *
+struct token *
 lexer_get_list(struct lexer *l)
 {
-	struct word_item *w;
+	struct token *w;
 	w = l->head;
 	l->head = NULL;
 	l->tail = NULL;
@@ -181,20 +212,16 @@ lexer_get_list(struct lexer *l)
 }
 
 
-struct word_item *
-split_line(const char *line)
+struct token *
+tokenize(const char *line)
 {
 	struct lexer *l;
-	struct word_item *w;
+	struct token *w;
 	l = lexer_new();
 	if (!l)
 		return NULL;
 	for (;; line++) {
 		switch (l->state) {
-		case finished:
-			w = lexer_get_list(l);
-			lexer_delete(l);
-			return w;
 		case normal:
 			lexer_step_normal(l, *line);
 			break;
@@ -207,6 +234,10 @@ split_line(const char *line)
 		case escape:
 			lexer_step_escape(l, *line);
 			break;
+		case finished:
+			w = lexer_get_list(l);
+			lexer_delete(l);
+			return w;
 		case memory_err:
 			fputs("error: failed to allocate memory\n", stderr);
 			lexer_delete(l);

@@ -8,17 +8,17 @@
 int
 main(void)
 {
-	struct word_item *words;
+	struct token *tokens;
 	char *line;
 	while ((line = read_line())) {
 		struct task *cmd;
-		words = split_line(line);
-		cmd = parse_words(words);
+		tokens = tokenize(line);
+		cmd = parse(tokens);
 		if (cmd) {
 			task_exec(cmd);
 			task_delete(cmd);
 		}
-		word_list_delete(words);
+		token_list_delete(tokens);
 		free(line);
 	}
 }
