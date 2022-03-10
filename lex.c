@@ -48,30 +48,37 @@ token_list_len(const struct token *head)
 struct lexer *
 lexer_new()
 {
-	struct lexer *l;
+	struct lexer *lex;
 	struct buffer *b;
-	l = malloc(sizeof(*l));
-	if (!l)
+	lex = malloc(sizeof(*lex));
+	if (!lex)
 		return NULL;
 	b = buffer_new();
 	if (!b) {
-		free(l);
+		free(lex);
 		return NULL;
 	}
-	l->state = normal;
-	l->prev_state = normal;
-	l->buf = b;
-	l->head = NULL;
-	l->tail = NULL;
-	return l;
+	lex->state = normal;
+	lex->prev_state = normal;
+	lex->buf = b;
+	lex->head = NULL;
+	lex->tail = NULL;
+	return lex;
 }
 
 void
-lexer_delete(struct lexer *l)
+lexer_delete(struct lexer *lex)
 {
-	buffer_delete(l->buf);
-	token_list_delete(l->head);
-	free(l);
+	buffer_delete(lex->buf);
+	token_list_delete(lex->head);
+	free(lex);
+}
+
+void
+lexer_set_err(struct lexer *lex, enum errtype type)
+{
+	lex->state = error;
+	lex->err = type;
 }
 
 void
@@ -96,7 +103,7 @@ lexer_cut(struct lexer *lex)
 		word = buffer_get_str(lex->buf);
 		tok = token_new(tok_word, word);
 		if (!tok) {
-			lex->state = memory_err;
+			lexer_set_err(lex, memory_err);
 			return;
 		}
 		lexer_append_token(lex, tok);
@@ -109,29 +116,29 @@ lexer_handle_separator(struct lexer *lex, char sep)
 	struct token *tok;
 	tok = token_new(sep, NULL);
 	if (!tok) {
-		lex->state = memory_err;
+		lexer_set_err(lex, memory_err);
 		return;
 	}
 	lexer_append_token(lex, tok);
 }
 
 void
-lexer_step_normal(struct lexer *l, char c)
+lexer_step_normal(struct lexer *lex, char c)
 {
 	switch (c) {
 	case 0:
-		l->state = finished;
+		lex->state = finished;
 		/* fall through */
 	case ' ':
 	case '\t':
-		lexer_cut(l);
+		lexer_cut(lex);
 		break;
 	case '"':
-		l->state = quote;
+		lex->state = quote;
 		break;
 	case '\\':
-		l->prev_state = l->state;
-		l->state = escape;
+		lex->prev_state = lex->state;
+		lex->state = escape;
 		break;
 	case ';':
 	case '(':
@@ -140,115 +147,123 @@ lexer_step_normal(struct lexer *l, char c)
 	case '|':
 	case '>':
 	case '<':
-		lexer_cut(l);
-		lexer_handle_separator(l, c);
+		lexer_cut(lex);
+		lexer_handle_separator(lex, c);
 		break;
 	default:
-		if (!buffer_add(l->buf, c))
-			l->state = memory_err;
+		if (!buffer_add(lex->buf, c))
+			lexer_set_err(lex, memory_err);
 	}
 }
 
 void
-lexer_step_quote(struct lexer *l, char c)
+lexer_step_quote(struct lexer *lex, char c)
 {
 	switch (c) {
 	case 0:
-		l->state = quote_err;
+		lexer_set_err(lex, quote_err);
 		break;
 	case '"':
-		l->state = l->buf->bufsz ? normal : empty;
+		lex->state = lex->buf->bufsz ? normal : empty;
 		break;
 	case '\\':
-		l->prev_state = l->state;
-		l->state = escape;
+		lex->prev_state = lex->state;
+		lex->state = escape;
 		break;
 	default:
-		if (!buffer_add(l->buf, c))
-			l->state = memory_err;
+		if (!buffer_add(lex->buf, c))
+			lexer_set_err(lex, memory_err);
 	}
 }
 
 void
-lexer_step_empty(struct lexer *l, char c)
+lexer_step_empty(struct lexer *lex, char c)
 {
 	switch (c) {
 	case 0:
 	case ' ':
 	case '\t':
-		if (!buffer_add(l->buf, 0)) {
-			l->state = memory_err;
+		if (!buffer_add(lex->buf, 0)) {
+			lexer_set_err(lex, memory_err);
 			return;
 		}
 		/* fall through */
 	default:
-		l->state = normal;
-		lexer_step_normal(l, c);
+		lex->state = normal;
+		lexer_step_normal(lex, c);
 	}
 }
 
 void
-lexer_step_escape(struct lexer *l, char c)
+lexer_step_escape(struct lexer *lex, char c)
 {
 	switch (c) {
 	case 0:
-		l->state = escape_err;
+		lexer_set_err(lex, escape_err);
 		break;
 	default:
-		l->state = l->prev_state;
-		if (!buffer_add(l->buf, c))
-			l->state = memory_err;
+		lex->state = lex->prev_state;
+		if (!buffer_add(lex->buf, c))
+			lexer_set_err(lex, memory_err);
+	}
+}
+
+void
+lexer_step_error(struct lexer *lex)
+{
+	switch (lex->err) {
+	case memory_err:
+		fputs("error: failed to allocate memory\n", stderr);
+		return;
+	case quote_err:
+		fputs("error: unclosed quote\n", stderr);
+		return;
+	case escape_err:
+		fputs("error: broken escape\n", stderr);
+		return;
 	}
 }
 
 struct token *
-lexer_get_list(struct lexer *l)
+lexer_get_tokens(struct lexer *lex)
 {
-	struct token *w;
-	w = l->head;
-	l->head = NULL;
-	l->tail = NULL;
-	return w;
+	struct token *tok;
+	tok = lex->head;
+	lex->head = NULL;
+	lex->tail = NULL;
+	return tok;
 }
 
 
 struct token *
 tokenize(const char *line)
 {
-	struct lexer *l;
-	struct token *w;
-	l = lexer_new();
-	if (!l)
+	struct lexer *lex;
+	struct token *tok;
+	lex = lexer_new();
+	if (!lex)
 		return NULL;
 	for (;; line++) {
-		switch (l->state) {
+		switch (lex->state) {
 		case normal:
-			lexer_step_normal(l, *line);
+			lexer_step_normal(lex, *line);
 			break;
 		case quote:
-			lexer_step_quote(l, *line);
+			lexer_step_quote(lex, *line);
 			break;
 		case empty:
-			lexer_step_empty(l, *line);
+			lexer_step_empty(lex, *line);
 			break;
 		case escape:
-			lexer_step_escape(l, *line);
+			lexer_step_escape(lex, *line);
 			break;
 		case finished:
-			w = lexer_get_list(l);
-			lexer_delete(l);
-			return w;
-		case memory_err:
-			fputs("error: failed to allocate memory\n", stderr);
-			lexer_delete(l);
-			return NULL;
-		case quote_err:
-			fputs("error: unclosed quote\n", stderr);
-			lexer_delete(l);
-			return NULL;
-		case escape_err:
-			fputs("error: broken escape\n", stderr);
-			lexer_delete(l);
+			tok = lexer_get_tokens(lex);
+			lexer_delete(lex);
+			return tok;
+		case error:
+			lexer_step_error(lex);
+			lexer_delete(lex);
 			return NULL;
 		}
 	}

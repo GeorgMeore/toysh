@@ -39,24 +39,31 @@ struct lexer {
 		empty,
 		escape,
 		finished,
+		error,
+	} state, prev_state;
+	enum errtype {
 		memory_err,
 		quote_err,
-		escape_err,
-	} state, prev_state;
+		escape_err
+	} err;
 	struct buffer *buf;
 	struct token *head, *tail;
 };
 
 struct lexer * lexer_new();
-void lexer_delete(struct lexer *l);
-void lexer_cut(struct lexer *l);
-void lexer_step_normal(struct lexer *l, char c);
-void lexer_step_quote(struct lexer *l, char c);
-void lexer_step_empty(struct lexer *l, char c);
-void lexer_step_escape(struct lexer *l, char c);
-struct token *lexer_get_list(struct lexer *l);
+void lexer_delete(struct lexer *lex);
+void lexer_set_err(struct lexer *lex, enum errtype type);
+void lexer_append_token(struct lexer *lex, struct token *tok);
+void lexer_cut(struct lexer *lex);
+void lexer_handle_separator(struct lexer *lex, char sep);
+struct token *lexer_get_tokens(struct lexer *lex);
+void lexer_step_normal(struct lexer *lex, char c);
+void lexer_step_quote(struct lexer *lex, char c);
+void lexer_step_empty(struct lexer *lex, char c);
+void lexer_step_escape(struct lexer *lex, char c);
+void lexer_step_error(struct lexer *lex);
 
 char * read_line();
-struct token * tokenize(const char *line);
+struct token *tokenize(const char *line);
 
 #endif /* LEX_INCLUDED */
