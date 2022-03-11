@@ -1,8 +1,6 @@
 #ifndef LEX_INCLUDED
 #define LEX_INCLUDED
 
-#include "read.h"
-
 struct token {
 	enum token_type {
 		tok_word,         /* just word */

@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "read.h"
+#include "input.h"
 #include "lex.h"
 #include "parse.h"
 #include "sched.h"
@@ -11,7 +11,7 @@ main(void)
 {
 	struct token *tokens;
 	char *line;
-	while ((line = read_line())) {
+	while (read_line(&line)) {
 		struct task *cmd;
 		tokens = tokenize(line);
 		cmd = parse(tokens);

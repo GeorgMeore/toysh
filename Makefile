@@ -1,15 +1,15 @@
 CC = gcc
 CFLAGS = -Wall -Wextra -g
 
-OBJ = lex.o parse.o sched.o sh.o read.o
+OBJ = input.o lex.o parse.o sched.o sh.o
 
 default: sh
 
-read.o: read.h
+input.o: input.h
 lex.o: lex.h
 sched.o: sched.h
 parse.o: lex.h parse.h sched.h
-sh.o: lex.h parse.h sched.h read.h
+sh.o: lex.h parse.h sched.h input.h
 
 sh: $(OBJ)
 	$(CC) $(LDFLAGS) -o $@ $(OBJ)

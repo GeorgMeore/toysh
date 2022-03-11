@@ -1,7 +1,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-#include "read.h"
+#include "input.h"
 #include "lex.h"
 
 struct lexer {
@@ -18,7 +18,7 @@ struct lexer {
 		quote_err,
 		escape_err
 	} err;
-	struct buffer *buf;
+	struct charbuf *buf;
 	struct token *head, *tail;
 };
 
@@ -68,11 +68,11 @@ static struct lexer *
 lexer_new()
 {
 	struct lexer *lex;
-	struct buffer *b;
+	struct charbuf *b;
 	lex = malloc(sizeof(*lex));
 	if (!lex)
 		return NULL;
-	b = buffer_new();
+	b = charbuf_new();
 	if (!b) {
 		free(lex);
 		return NULL;
@@ -88,7 +88,7 @@ lexer_new()
 static void
 lexer_delete(struct lexer *lex)
 {
-	buffer_delete(lex->buf);
+	charbuf_delete(lex->buf);
 	token_list_delete(lex->head);
 	free(lex);
 }
@@ -116,10 +116,10 @@ lexer_append_token(struct lexer *lex, struct token *tok)
 static void
 lexer_cut(struct lexer *lex)
 {
-	if (!buffer_is_empty(lex->buf)) {
+	if (!charbuf_is_empty(lex->buf)) {
 		char *word;
 		struct token *tok;
-		word = buffer_get_str(lex->buf);
+		word = charbuf_get_str(lex->buf);
 		tok = token_new(tok_word, word);
 		if (!tok) {
 			lexer_set_err(lex, memory_err);
@@ -164,7 +164,7 @@ lexer_step_normal(struct lexer *lex, char c)
 		lexer_handle_separator(lex, c);
 		break;
 	default:
-		if (!buffer_add(lex->buf, c))
+		if (!charbuf_add(lex->buf, c))
 			lexer_set_err(lex, memory_err);
 	}
 }
@@ -177,14 +177,14 @@ lexer_step_quote(struct lexer *lex, char c)
 		lexer_set_err(lex, quote_err);
 		break;
 	case '"':
-		lex->state = lex->buf->bufsz ? normal : empty;
+		lex->state = charbuf_is_empty(lex->buf) ? normal : empty;
 		break;
 	case '\\':
 		lex->prev_state = lex->state;
 		lex->state = escape;
 		break;
 	default:
-		if (!buffer_add(lex->buf, c))
+		if (!charbuf_add(lex->buf, c))
 			lexer_set_err(lex, memory_err);
 	}
 }
@@ -196,7 +196,7 @@ lexer_step_empty(struct lexer *lex, char c)
 	case 0:
 	case ' ':
 	case '\t':
-		if (!buffer_add(lex->buf, 0)) {
+		if (!charbuf_add(lex->buf, 0)) {
 			lexer_set_err(lex, memory_err);
 			return;
 		}
@@ -216,7 +216,7 @@ lexer_step_escape(struct lexer *lex, char c)
 		break;
 	default:
 		lex->state = lex->prev_state;
-		if (!buffer_add(lex->buf, c))
+		if (!charbuf_add(lex->buf, c))
 			lexer_set_err(lex, memory_err);
 	}
 }
