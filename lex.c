@@ -18,7 +18,7 @@ struct lexer {
 		quote_err,
 		escape_err
 	} err;
-	struct charbuf *buf;
+	struct charbuf buf;
 	struct token *head, *tail;
 };
 
@@ -64,33 +64,21 @@ token_list_len(const struct token *head)
 	return len;
 }
 
-static struct lexer *
-lexer_new()
+static void
+lexer_init(struct lexer *lex)
 {
-	struct lexer *lex;
-	struct charbuf *b;
-	lex = malloc(sizeof(*lex));
-	if (!lex)
-		return NULL;
-	b = charbuf_new();
-	if (!b) {
-		free(lex);
-		return NULL;
-	}
+	charbuf_init(&lex->buf);
 	lex->state = normal;
 	lex->prev_state = normal;
-	lex->buf = b;
 	lex->head = NULL;
 	lex->tail = NULL;
-	return lex;
 }
 
 static void
-lexer_delete(struct lexer *lex)
+lexer_destroy(struct lexer *lex)
 {
-	charbuf_delete(lex->buf);
+	charbuf_destroy(&lex->buf);
 	token_list_delete(lex->head);
-	free(lex);
 }
 
 static void
@@ -116,10 +104,10 @@ lexer_append_token(struct lexer *lex, struct token *tok)
 static void
 lexer_cut(struct lexer *lex)
 {
-	if (!charbuf_is_empty(lex->buf)) {
+	if (!charbuf_is_empty(&lex->buf)) {
 		char *word;
 		struct token *tok;
-		word = charbuf_get_str(lex->buf);
+		word = charbuf_get_str(&lex->buf);
 		tok = token_new(tok_word, word);
 		if (!tok) {
 			lexer_set_err(lex, memory_err);
@@ -164,7 +152,7 @@ lexer_step_normal(struct lexer *lex, char c)
 		lexer_handle_separator(lex, c);
 		break;
 	default:
-		if (!charbuf_add(lex->buf, c))
+		if (!charbuf_add(&lex->buf, c))
 			lexer_set_err(lex, memory_err);
 	}
 }
@@ -177,14 +165,14 @@ lexer_step_quote(struct lexer *lex, char c)
 		lexer_set_err(lex, quote_err);
 		break;
 	case '"':
-		lex->state = charbuf_is_empty(lex->buf) ? normal : empty;
+		lex->state = charbuf_is_empty(&lex->buf) ? normal : empty;
 		break;
 	case '\\':
 		lex->prev_state = lex->state;
 		lex->state = escape;
 		break;
 	default:
-		if (!charbuf_add(lex->buf, c))
+		if (!charbuf_add(&lex->buf, c))
 			lexer_set_err(lex, memory_err);
 	}
 }
@@ -196,7 +184,7 @@ lexer_step_empty(struct lexer *lex, char c)
 	case 0:
 	case ' ':
 	case '\t':
-		if (!charbuf_add(lex->buf, 0)) {
+		if (!charbuf_add(&lex->buf, 0)) {
 			lexer_set_err(lex, memory_err);
 			return;
 		}
@@ -216,7 +204,7 @@ lexer_step_escape(struct lexer *lex, char c)
 		break;
 	default:
 		lex->state = lex->prev_state;
-		if (!charbuf_add(lex->buf, c))
+		if (!charbuf_add(&lex->buf, c))
 			lexer_set_err(lex, memory_err);
 	}
 }
@@ -251,32 +239,30 @@ lexer_get_tokens(struct lexer *lex)
 struct token *
 tokenize(const char *line)
 {
-	struct lexer *lex;
+	struct lexer lex;
 	struct token *toks;
-	lex = lexer_new();
-	if (!lex)
-		return NULL;
+	lexer_init(&lex);
 	for (;; line++) {
-		switch (lex->state) {
+		switch (lex.state) {
 		case normal:
-			lexer_step_normal(lex, *line);
+			lexer_step_normal(&lex, *line);
 			break;
 		case quote:
-			lexer_step_quote(lex, *line);
+			lexer_step_quote(&lex, *line);
 			break;
 		case empty:
-			lexer_step_empty(lex, *line);
+			lexer_step_empty(&lex, *line);
 			break;
 		case escape:
-			lexer_step_escape(lex, *line);
+			lexer_step_escape(&lex, *line);
 			break;
 		case finished:
-			toks = lexer_get_tokens(lex);
-			lexer_delete(lex);
+			toks = lexer_get_tokens(&lex);
+			lexer_destroy(&lex);
 			return toks;
 		case error:
-			lexer_step_error(lex);
-			lexer_delete(lex);
+			lexer_step_error(&lex);
+			lexer_destroy(&lex);
 			return NULL;
 		}
 	}

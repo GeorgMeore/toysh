@@ -7,8 +7,8 @@ struct charbuf {
 	int size;
 };
 
-struct charbuf *charbuf_new();
-void charbuf_delete(struct charbuf *buf);
+void charbuf_init(struct charbuf *buf);
+void charbuf_destroy(struct charbuf *buf);
 char *charbuf_get_str(struct charbuf *buf);
 int charbuf_add(struct charbuf *buf, char c);
 int charbuf_is_empty(const struct charbuf *buf);

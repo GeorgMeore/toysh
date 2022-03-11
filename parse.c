@@ -5,43 +5,39 @@
 #include "parse.h"
 #include "sched.h"
 
+#define ARGBUF_STEP 24
+
 struct argbuf {
 	int argc;
 	char **argv;
 	int cap;
 };
 
-struct argbuf *
-argbuf_new()
+static void
+argbuf_init(struct argbuf *buf)
 {
-	struct argbuf *arg;
-	arg = malloc(sizeof(*arg));
-	if (!arg)
-		return NULL;
-	arg->argc = 0;
-	arg->argv = NULL;
-	arg->cap = 0;
-	return arg;
+	buf->argc = 0;
+	buf->argv = NULL;
+	buf->cap = 0;
 }
 
-void
-argbuf_delete(struct argbuf *args)
+static void
+argbuf_destroy(struct argbuf *buf)
 {
-	if (args->argv) {
+	if (buf->argv) {
 		int i;
-		for (i = 0; args->argv[i]; i++)
-			free(args->argv[i]);
-		free(args->argv);
+		for (i = 0; buf->argv[i]; i++)
+			free(buf->argv[i]);
+		free(buf->argv);
 	}
-	free(args);
 }
 
-int
+static int
 argbuf_append(struct argbuf *args, const char *arg)
 {
 	char **tmp;
 	if (args->argc > args->cap - 1) {
-		args->cap += 24;
+		args->cap += ARGBUF_STEP;
 		tmp = realloc(args->argv, args->cap * sizeof(*args->argv));
 		if (!tmp)
 			return 0;
@@ -57,7 +53,7 @@ argbuf_append(struct argbuf *args, const char *arg)
 	return 1;
 }
 
-char **
+static char **
 argbuf_get_argv(struct argbuf *args)
 {
 	char **tmp;
@@ -71,24 +67,21 @@ argbuf_get_argv(struct argbuf *args)
 struct task *
 parse(const struct token *head)
 {
-	struct argbuf *args;
-	int argc;
-	char **argv;
+	struct argbuf args;
+	struct task *cmd;
 	int bg = 0;
-	args = argbuf_new();
-	if (!args)
-		return NULL;
+	argbuf_init(&args);
 	while (head) {
 		switch (head->type) {
 		case tok_word:
-			if (!argbuf_append(args, head->word)) {
-				argbuf_delete(args);
+			if (!argbuf_append(&args, head->word)) {
+				argbuf_destroy(&args);
 				return NULL;
 			}
 			break;
 		case tok_bg:
 			if (head->next) {
-				argbuf_delete(args);
+				argbuf_destroy(&args);
 				fputs("error: & should be last\n", stderr);
 				return NULL;
 			}
@@ -96,10 +89,13 @@ parse(const struct token *head)
 		}
 		head = head->next;
 	}
-	argc = args->argc;
-	argv = argbuf_get_argv(args);
-	argbuf_delete(args);
-	if (argc < 1)
-		return NULL;
-	return task_new(argc, argv, bg);
+	if (args.argc < 1)
+		cmd = NULL;
+	else {
+		int argc = args.argc;
+		char **argv = argbuf_get_argv(&args);
+		cmd = task_new(argc, argv, bg);
+	}
+	argbuf_destroy(&args);
+	return cmd;
 }
