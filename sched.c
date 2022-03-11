@@ -12,10 +12,8 @@ task_new(int argc, char **args, int bg)
 {
 	struct task *t;
 	t = malloc(sizeof(*t));
-	if (!t) {
-		fputs("error: failed to allocate memory\n", stderr);
+	if (!t)
 		return NULL;
-	}
 	t->argc = argc;
 	t->args = args;
 	t->bg = bg;
@@ -35,7 +33,8 @@ task_delete(struct task *t)
 void
 sched(const struct task *t)
 {
-	while (waitpid(-1, NULL, WNOHANG) > 0); /* collect zombies */
+	while (waitpid(-1, NULL, WNOHANG) > 0)
+		{} /* collect zombies */
 	if (!strcmp(t->args[0], "cd")) {
 		if (t->argc == 1)
 			chdir(getenv("HOME"));

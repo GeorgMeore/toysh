@@ -77,13 +77,12 @@ read_line(char **lineptr)
 			clearerr(stdin);
 			/* fall through */
 		case '\n':
-			if (charbuf_is_empty(buf)) {
+			if (charbuf_is_empty(buf))
 				/* need to return empty, but not NULL */
 				if (!charbuf_add(buf, 0)) {
 					charbuf_delete(buf);
 					return 0;
 				}
-			}
 			*lineptr = charbuf_get_str(buf);
 			charbuf_delete(buf);
 			return 1;
