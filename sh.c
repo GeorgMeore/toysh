@@ -4,7 +4,7 @@
 #include "read.h"
 #include "lex.h"
 #include "parse.h"
-#include "exec.h"
+#include "sched.h"
 
 int
 main(void)
@@ -16,7 +16,7 @@ main(void)
 		tokens = tokenize(line);
 		cmd = parse(tokens);
 		if (cmd) {
-			task_exec(cmd);
+			sched(cmd);
 			task_delete(cmd);
 		}
 		token_list_delete(tokens);

@@ -5,14 +5,19 @@
 
 struct token {
 	enum token_type {
-		tok_word,       /* just word */
-		tok_sem  = ';', /* ; */
-		tok_lbr  = '(', /* ( */
-		tok_rbr  = ')', /* ) */
-		tok_gt   = '>', /* > */
-		tok_lt   = '<', /* < */
-		tok_amp  = '&', /* & */
-		tok_pipe = '|', /* | */
+		tok_word,         /* just word */
+		tok_bg   = '&',   /* execute in background */
+		/* TODO: implement other tokens */
+		/* tok_sem  = ';', */
+		/* tok_lbr  = '(', */
+		/* tok_rbr  = ')', */
+		/* tok_gt   = '>', */
+		/* tok_lt   = '<', */
+		/* tok_pipe = '|', */
+		/* tok_ggt  = '>'*2, */
+		/* tok_llt  = '<'*2, */
+		/* tok_and  = '&'*2, */
+		/* tok_or  = '|'*2, */
 	} type;
 	char *word;
 	struct token *next;

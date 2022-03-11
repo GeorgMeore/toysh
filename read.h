@@ -11,6 +11,7 @@ struct buffer *buffer_new();
 void buffer_delete(struct buffer *b);
 char *buffer_get_str(struct buffer *b);
 int buffer_add(struct buffer *b, char c);
+int buffer_is_empty(const struct buffer *buf);
 
 char *read_line();
 

@@ -2,7 +2,7 @@
 #define PARSE_INCLUDED
 
 #include "lex.h"
-#include "exec.h"
+#include "sched.h"
 
 struct task *parse(const struct token *head);
 

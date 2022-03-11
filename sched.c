@@ -3,12 +3,12 @@
 #include <string.h>
 #include <unistd.h>
 #include <sys/wait.h>
-#include "exec.h"
+#include "sched.h"
 
 /* args must be malloc-allocated array of malloc allocated strings
  * ownership of args is transferred here */
 struct task *
-task_new(int argc, char **args)
+task_new(int argc, char **args, int bg)
 {
 	struct task *t;
 	t = malloc(sizeof(*t));
@@ -18,6 +18,7 @@ task_new(int argc, char **args)
 	}
 	t->argc = argc;
 	t->args = args;
+	t->bg = bg;
 	return t;
 }
 
@@ -32,8 +33,9 @@ task_delete(struct task *t)
 }
 
 void
-task_exec(const struct task *t)
+sched(const struct task *t)
 {
+	while (waitpid(-1, NULL, WNOHANG) > 0); /* collect zombies */
 	if (!strcmp(t->args[0], "cd")) {
 		if (t->argc == 1)
 			chdir(getenv("HOME"));
@@ -53,6 +55,9 @@ task_exec(const struct task *t)
 			perror("error: exec");
 			exit(1);
 		}
-		wait(NULL);
+		if (!t->bg) {
+			int status;
+			waitpid(pid, &status, 0);
+		}
 	}
 }

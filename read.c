@@ -51,6 +51,12 @@ buffer_add(struct buffer *b, char c)
 	return 1;
 }
 
+int
+buffer_is_empty(const struct buffer *buf)
+{
+	return !buf->bufsz;
+}
+
 char *
 read_line()
 {
@@ -65,7 +71,7 @@ read_line()
 		c = getchar();
 		switch (c) {
 		case EOF:
-			if (!b->bufsz) {
+			if (buffer_is_empty(b)) {
 				buffer_delete(b);
 				return NULL;
 			}

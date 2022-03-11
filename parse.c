@@ -3,7 +3,7 @@
 #include <stdlib.h>
 #include "lex.h"
 #include "parse.h"
-#include "exec.h"
+#include "sched.h"
 
 struct argbuf {
 	int argc;
@@ -74,6 +74,7 @@ parse(const struct token *head)
 	struct argbuf *args;
 	int argc;
 	char **argv;
+	int bg = 0;
 	args = argbuf_new();
 	if (!args)
 		return NULL;
@@ -85,9 +86,13 @@ parse(const struct token *head)
 				return NULL;
 			}
 			break;
-		default:
-			fputs("error: not implemented!\n", stderr);
-			return NULL;
+		case tok_bg:
+			if (head->next) {
+				argbuf_delete(args);
+				fputs("error: & should be last\n", stderr);
+				return NULL;
+			}
+			bg = 1;
 		}
 		head = head->next;
 	}
@@ -96,5 +101,5 @@ parse(const struct token *head)
 	argbuf_delete(args);
 	if (argc < 1)
 		return NULL;
-	return task_new(argc, argv);
+	return task_new(argc, argv, bg);
 }

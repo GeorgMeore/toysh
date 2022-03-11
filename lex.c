@@ -116,7 +116,7 @@ lexer_append_token(struct lexer *lex, struct token *tok)
 static void
 lexer_cut(struct lexer *lex)
 {
-	if (lex->buf->bufsz) {
+	if (!buffer_is_empty(lex->buf)) {
 		char *word;
 		struct token *tok;
 		word = buffer_get_str(lex->buf);
@@ -159,13 +159,7 @@ lexer_step_normal(struct lexer *lex, char c)
 		lex->prev_state = lex->state;
 		lex->state = escape;
 		break;
-	case ';':
-	case '(':
-	case ')':
 	case '&':
-	case '|':
-	case '>':
-	case '<':
 		lexer_cut(lex);
 		lexer_handle_separator(lex, c);
 		break;
