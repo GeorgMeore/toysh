@@ -1,11 +1,30 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include "read.h"
 #include "lex.h"
+
+struct lexer {
+	enum lexer_state {
+		normal,
+		quote,
+		empty,
+		escape,
+		finished,
+		error,
+	} state, prev_state;
+	enum errtype {
+		memory_err,
+		quote_err,
+		escape_err
+	} err;
+	struct buffer *buf;
+	struct token *head, *tail;
+};
 
 /* word must be malloc-allocated string
  * ownership of word is transferred here */
-struct token *
+static struct token *
 token_new(enum token_type type, char *word)
 {
 	struct token *tok;
@@ -18,7 +37,7 @@ token_new(enum token_type type, char *word)
 	return tok;
 }
 
-void
+static void
 token_delete(struct token *w)
 {
 	free(w->word);
@@ -45,7 +64,7 @@ token_list_len(const struct token *head)
 	return len;
 }
 
-struct lexer *
+static struct lexer *
 lexer_new()
 {
 	struct lexer *lex;
@@ -66,7 +85,7 @@ lexer_new()
 	return lex;
 }
 
-void
+static void
 lexer_delete(struct lexer *lex)
 {
 	buffer_delete(lex->buf);
@@ -74,14 +93,14 @@ lexer_delete(struct lexer *lex)
 	free(lex);
 }
 
-void
+static void
 lexer_set_err(struct lexer *lex, enum errtype type)
 {
 	lex->state = error;
 	lex->err = type;
 }
 
-void
+static void
 lexer_append_token(struct lexer *lex, struct token *tok)
 {
 	if (lex->tail) {
@@ -94,7 +113,7 @@ lexer_append_token(struct lexer *lex, struct token *tok)
 	}
 }
 
-void
+static void
 lexer_cut(struct lexer *lex)
 {
 	if (lex->buf->bufsz) {
@@ -110,7 +129,7 @@ lexer_cut(struct lexer *lex)
 	}
 }
 
-void
+static void
 lexer_handle_separator(struct lexer *lex, char sep)
 {
 	struct token *tok;
@@ -122,7 +141,7 @@ lexer_handle_separator(struct lexer *lex, char sep)
 	lexer_append_token(lex, tok);
 }
 
-void
+static void
 lexer_step_normal(struct lexer *lex, char c)
 {
 	switch (c) {
@@ -156,7 +175,7 @@ lexer_step_normal(struct lexer *lex, char c)
 	}
 }
 
-void
+static void
 lexer_step_quote(struct lexer *lex, char c)
 {
 	switch (c) {
@@ -176,7 +195,7 @@ lexer_step_quote(struct lexer *lex, char c)
 	}
 }
 
-void
+static void
 lexer_step_empty(struct lexer *lex, char c)
 {
 	switch (c) {
@@ -194,7 +213,7 @@ lexer_step_empty(struct lexer *lex, char c)
 	}
 }
 
-void
+static void
 lexer_step_escape(struct lexer *lex, char c)
 {
 	switch (c) {
@@ -208,7 +227,7 @@ lexer_step_escape(struct lexer *lex, char c)
 	}
 }
 
-void
+static void
 lexer_step_error(struct lexer *lex)
 {
 	switch (lex->err) {
@@ -224,7 +243,7 @@ lexer_step_error(struct lexer *lex)
 	}
 }
 
-struct token *
+static struct token *
 lexer_get_tokens(struct lexer *lex)
 {
 	struct token *tok;
@@ -264,88 +283,6 @@ tokenize(const char *line)
 		case error:
 			lexer_step_error(lex);
 			lexer_delete(lex);
-			return NULL;
-		}
-	}
-}
-
-struct buffer *
-buffer_new()
-{
-	struct buffer *b;
-	b = malloc(sizeof(*b));
-	if (!b)
-		return NULL;
-	b->bufcap = 0;
-	b->bufsz = 0;
-	b->buf = NULL;
-	return b;
-}
-
-void
-buffer_delete(struct buffer *b)
-{
-	free(b->buf);
-	free(b);
-}
-
-char *
-buffer_get_str(struct buffer *b)
-{
-	char *buf;
-	buf = b->buf;
-	b->buf = NULL;
-	b->bufcap = 0;
-	b->bufsz = 0;
-	return buf;
-}
-
-int
-buffer_add(struct buffer *b, char c)
-{
-	char *tmp;
-	/* allocate more memory as needed */
-	if (b->bufsz >= b->bufcap - 1) {
-		b->bufcap += 256;
-		tmp = realloc(b->buf, b->bufcap);
-		if (!tmp)
-			return 0;
-		b->buf = tmp;
-	}
-	b->buf[b->bufsz] = c;
-	b->buf[b->bufsz+1] = 0;
-	b->bufsz++;
-	return 1;
-}
-
-char *
-read_line()
-{
-	struct buffer *b;
-	char *line;
-	b = buffer_new();
-	if (!b)
-		return NULL;
-	fputs("> ", stderr);
-	for (;;) {
-		int c, res;
-		c = getchar();
-		switch (c) {
-		case EOF:
-			if (!b->bufsz) {
-				buffer_delete(b);
-				return NULL;
-			}
-			clearerr(stdin);
-			/* fall through */
-		case '\n':
-			line = buffer_get_str(b);
-			buffer_delete(b);
-			return line;
-		}
-		res = buffer_add(b, c);
-		if (!res) {
-			buffer_delete(b);
 			return NULL;
 		}
 	}
