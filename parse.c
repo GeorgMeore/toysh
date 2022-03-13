@@ -4,8 +4,6 @@
 #include "lex.h"
 #include "parse.h"
 
-#define ARGBUF_STEP 24
-
 static int
 argcount(char **args)
 {
@@ -80,7 +78,7 @@ argbuf_append(struct argbuf *buf, const char *arg)
 {
 	char **tmp;
 	if (buf->argc > buf->cap - 1) {
-		buf->cap += ARGBUF_STEP;
+		buf->cap += 24;
 		tmp = realloc(buf->argv, buf->cap * sizeof(*buf->argv));
 		if (!tmp)
 			return 0;
@@ -170,8 +168,6 @@ parser_form_task(struct parser *par)
 {
 	struct task *tsk;
 	char **argv;
-	if (argbuf_is_empty(&par->args)) {
-	}
 	tsk = malloc(sizeof(*tsk));
 	if (!tsk) {
 		parser_set_error(par, memory_err);

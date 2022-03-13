@@ -37,6 +37,61 @@ token_list_delete(struct token *head)
 	}
 }
 
+struct charbuf {
+	char *chars;
+	int cap;
+	int size;
+};
+
+static void
+charbuf_init(struct charbuf *buf)
+{
+	buf->cap = 0;
+	buf->size = 0;
+	buf->chars = NULL;
+}
+
+static void
+charbuf_destroy(struct charbuf *buf)
+{
+	free(buf->chars);
+}
+
+static char *
+charbuf_get_str(struct charbuf *buf)
+{
+	char *tmp;
+	tmp = buf->chars;
+	buf->chars = NULL;
+	buf->cap = 0;
+	buf->size = 0;
+	return tmp;
+}
+
+static int
+charbuf_add(struct charbuf *buf, char c)
+{
+	char *tmp;
+	/* allocate more memory as needed */
+	if (buf->size >= buf->cap - 1) {
+		buf->cap += 256;
+		tmp = realloc(buf->chars, buf->cap);
+		if (!tmp)
+			return 0;
+		buf->chars = tmp;
+	}
+	buf->chars[buf->size] = c;
+	buf->chars[buf->size+1] = 0;
+	buf->size++;
+	return 1;
+}
+
+static int
+charbuf_is_empty(const struct charbuf *buf)
+{
+	return !buf->size;
+}
+
 struct lexer {
 	enum lexer_state {
 		normal,

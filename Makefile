@@ -1,15 +1,17 @@
 CC = gcc
 CFLAGS = -Wall -Wextra -g
 
-OBJ = input.o lex.o parse.o sched.o sh.o
+SRC = input.c lex.c parse.c sched.c sh.c
+OBJ = $(SRC:.c=.o)
 
 default: sh
 
-input.o: input.h
-lex.o: lex.h input.h
-parse.o: lex.h parse.h
-sched.o: sched.h parse.h
-sh.o: lex.h parse.h sched.h input.h
+ifneq (clean, $(MAKECMDGOALS))
+-include deps.mk
+endif
+
+deps.mk: $(SRC)
+	$(CC) -MM $^ > $@
 
 sh: $(OBJ)
 	$(CC) $(LDFLAGS) -o $@ $(OBJ)
@@ -18,6 +20,6 @@ sh: $(OBJ)
 	$(CC) $(CFLAGS) -c $<
 
 clean:
-	rm -rf sh $(OBJ)
+	rm -rf sh $(OBJ) deps.mk
 
 .PHONY: default clean
