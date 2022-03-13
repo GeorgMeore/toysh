@@ -4,24 +4,6 @@
 #include "input.h"
 #include "lex.h"
 
-struct lexer {
-	enum lexer_state {
-		normal,
-		quote,
-		empty,
-		escape,
-		finished,
-		error
-	} state, prev_state;
-	enum lexer_error {
-		memory_err,
-		quote_err,
-		escape_err
-	} err_type;
-	struct charbuf buf;
-	struct token *head, *tail;
-};
-
 /* word must be malloc-allocated string
  * ownership of word is transferred here */
 static struct token *
@@ -54,6 +36,24 @@ token_list_delete(struct token *head)
 		head = tmp;
 	}
 }
+
+struct lexer {
+	enum lexer_state {
+		normal,
+		quote,
+		empty,
+		escape,
+		finished,
+		error
+	} state, prev_state;
+	enum lexer_error {
+		memory_err,
+		quote_err,
+		escape_err
+	} err_type;
+	struct charbuf buf;
+	struct token *head, *tail;
+};
 
 static void
 lexer_init(struct lexer *lex)

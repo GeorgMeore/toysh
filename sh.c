@@ -1,6 +1,4 @@
-#include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 #include "input.h"
 #include "lex.h"
 #include "parse.h"
@@ -9,9 +7,9 @@
 int
 main(void)
 {
-	struct token *tokens;
 	char *line;
 	while (read_line(&line)) {
+		struct token *tokens;
 		struct task *tasks;
 		tokens = tokenize(line);
 		tasks = parse(tokens);

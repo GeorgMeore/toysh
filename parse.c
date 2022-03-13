@@ -3,9 +3,56 @@
 #include <stdlib.h>
 #include "lex.h"
 #include "parse.h"
-#include "sched.h"
 
 #define ARGBUF_STEP 24
+
+static int
+argcount(char **args)
+{
+	int argc;
+	for (argc = 0; args[argc]; argc++)
+		{}
+	return argc;
+}
+
+static void
+argdelete(char **args)
+{
+	char **tmp;
+	for (tmp = args; *tmp; tmp++)
+		free(*tmp);
+	free(args);
+}
+
+/* args must be a malloc-allocated array of malloc allocated strings
+ * ownership of args is transferred here
+ * tsk must be malloc-allocated */
+void
+task_init(struct task *tsk, char **args, int bg)
+{
+	tsk->argc = argcount(args);
+	tsk->args = args;
+	tsk->bg = bg;
+	tsk->next = NULL;
+}
+
+static void
+task_delete(struct task *tsk)
+{
+	argdelete(tsk->args);
+	free(tsk);
+}
+
+void
+task_list_delete(struct task *head)
+{
+	struct task *tmp;
+	while (head) {
+		tmp = head->next;
+		task_delete(head);
+		head = tmp;
+	}
+}
 
 struct argbuf {
 	char **argv;
@@ -24,12 +71,8 @@ argbuf_init(struct argbuf *buf)
 static void
 argbuf_destroy(struct argbuf *buf)
 {
-	if (buf->argv) {
-		char **tmp;
-		for (tmp = buf->argv; *tmp; tmp++)
-			free(*tmp);
-		free(buf->argv);
-	}
+	if (buf->argv)
+		argdelete(buf->argv);
 }
 
 static int
@@ -128,10 +171,8 @@ parser_form_task(struct parser *par)
 	struct task *tsk;
 	char **argv;
 	if (argbuf_is_empty(&par->args)) {
-		parser_set_error(par, parsing_err);
-		return;
 	}
-	tsk = task_new();
+	tsk = malloc(sizeof(*tsk));
 	if (!tsk) {
 		parser_set_error(par, memory_err);
 		return;
@@ -142,36 +183,25 @@ parser_form_task(struct parser *par)
 	par->bg = 0;
 }
 
-static struct task *
-parser_get_tasks(struct parser *par)
-{
-	struct task *tasks;
-	tasks = par->head;
-	par->head = NULL;
-	par->tail = NULL;
-	return tasks;
-}
-
 static void
 parser_step_normal(struct parser *par, const struct token *tok)
 {
 	if (!tok) {
-		if (!argbuf_is_empty(&par->args)) {
+		par->state = finished;
+		if (!argbuf_is_empty(&par->args))
 			parser_form_task(par);
-			par->state = finished;
-		}
-		else if (par->bg)
-			parser_set_error(par, parsing_err);
-		else
-			par->state = finished;
 		return;
 	}
-	switch (tok->type){
+	switch (tok->type) {
 	case tok_word:
 		if (!argbuf_append(&par->args, tok->word))
 			parser_set_error(par, memory_err);
 		break;
 	case tok_bg:
+		if (argbuf_is_empty(&par->args)) {
+			parser_set_error(par, parsing_err);
+			return;
+		}
 		par->bg = 1;
 		parser_form_task(par);
 	}
@@ -190,6 +220,16 @@ parser_step_error(struct parser *par)
 	}
 }
 
+static struct task *
+parser_get_tasks(struct parser *par)
+{
+	struct task *tasks;
+	tasks = par->head;
+	par->head = NULL;
+	par->tail = NULL;
+	return tasks;
+}
+
 struct task *
 parse(const struct token *tok)
 {
@@ -201,14 +241,14 @@ parse(const struct token *tok)
 		case normal:
 			parser_step_normal(&par, tok);
 			break;
-		case error:
-			parser_step_error(&par);
-			parser_destroy(&par);
-			return NULL;
 		case finished:
 			tasks = parser_get_tasks(&par);
 			parser_destroy(&par);
 			return tasks;
+		case error:
+			parser_step_error(&par);
+			parser_destroy(&par);
+			return NULL;
 		}
 		if (tok)
 			tok = tok->next;
