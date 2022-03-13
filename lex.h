@@ -22,7 +22,6 @@ struct token {
 };
 
 void token_list_delete(struct token *head);
-int token_list_len(const struct token *head);
 
 struct token *tokenize(const char *line);
 

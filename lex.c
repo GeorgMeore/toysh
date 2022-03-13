@@ -11,13 +11,13 @@ struct lexer {
 		empty,
 		escape,
 		finished,
-		error,
+		error
 	} state, prev_state;
-	enum errtype {
+	enum lexer_error {
 		memory_err,
 		quote_err,
 		escape_err
-	} err;
+	} err_type;
 	struct charbuf buf;
 	struct token *head, *tail;
 };
@@ -55,15 +55,6 @@ token_list_delete(struct token *head)
 	}
 }
 
-int
-token_list_len(const struct token *head)
-{
-	int len;
-	for (len = 0; head; len++)
-		head = head->next;
-	return len;
-}
-
 static void
 lexer_init(struct lexer *lex)
 {
@@ -82,10 +73,10 @@ lexer_destroy(struct lexer *lex)
 }
 
 static void
-lexer_set_err(struct lexer *lex, enum errtype type)
+lexer_set_err(struct lexer *lex, enum lexer_error type)
 {
 	lex->state = error;
-	lex->err = type;
+	lex->err_type = type;
 }
 
 static void
@@ -212,7 +203,7 @@ lexer_step_escape(struct lexer *lex, char c)
 static void
 lexer_step_error(struct lexer *lex)
 {
-	switch (lex->err) {
+	switch (lex->err_type) {
 	case memory_err:
 		fputs("error: failed to allocate memory\n", stderr);
 		return;
