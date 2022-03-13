@@ -12,13 +12,11 @@ main(void)
 	struct token *tokens;
 	char *line;
 	while (read_line(&line)) {
-		struct task *cmd;
+		struct task *tasks;
 		tokens = tokenize(line);
-		cmd = parse(tokens);
-		if (cmd) {
-			sched(cmd);
-			task_delete(cmd);
-		}
+		tasks = parse(tokens);
+		sched(tasks);
+		task_list_delete(tasks);
 		token_list_delete(tokens);
 		free(line);
 	}
