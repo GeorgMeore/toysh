@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
 #include "input.h"
 
 int
@@ -7,8 +8,10 @@ read_line(char **lineptr)
 {
 	int read = 0;
 	int size = 0;
+	int tty = isatty(fileno(stdin));
 	int c;
-	fputs("> ", stderr);
+	if (tty)
+		fputs("> ", stderr);
 	for (*lineptr = NULL; ;read++) {
 		if (read >= size - 1) {
 			char *tmp;
@@ -27,7 +30,8 @@ read_line(char **lineptr)
 				free(*lineptr);
 				return 0;
 			}
-			clearerr(stdin);
+			if (tty)
+				clearerr(stdin);
 			/* fall through */
 		case '\n':
 			(*lineptr)[read] = 0;
