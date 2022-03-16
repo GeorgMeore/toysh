@@ -193,13 +193,17 @@ parser_step_normal(struct parser *par, const struct token *tok)
 		if (!argbuf_append(&par->args, tok->word))
 			parser_set_error(par, memory_err);
 		break;
-	case tok_bg:
+	case tok_amp:
 		if (argbuf_is_empty(&par->args)) {
 			parser_set_error(par, parsing_err);
 			return;
 		}
 		par->bg = 1;
 		parser_form_task(par);
+		break;
+	default:
+		fprintf(stderr, "error: token %s not implemented yet\n", tok->word);
+		parser_set_error(par, parsing_err);
 	}
 }
 

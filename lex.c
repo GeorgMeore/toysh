@@ -94,7 +94,8 @@ charbuf_is_empty(const struct charbuf *buf)
 
 struct lexer {
 	enum lexer_state {
-		normal,
+		word,
+		separator,
 		quote,
 		empty,
 		escape,
@@ -103,6 +104,7 @@ struct lexer {
 	} state, prev_state;
 	enum lexer_error {
 		memory_err,
+		separator_err,
 		quote_err,
 		escape_err
 	} err_type;
@@ -114,8 +116,8 @@ static void
 lexer_init(struct lexer *lex)
 {
 	charbuf_init(&lex->buf);
-	lex->state = normal;
-	lex->prev_state = normal;
+	lex->state = word;
+	lex->prev_state = word;
 	lex->head = NULL;
 	lex->tail = NULL;
 }
@@ -163,20 +165,60 @@ lexer_handle_word_end(struct lexer *lex)
 	}
 }
 
+static int
+to_tok(const char *str, enum token_type *type)
+{
+	if (!strcmp(str, "&"))
+		*type = tok_amp;
+	else if (!strcmp(str, "<"))
+		*type = tok_lt;
+	else if (!strcmp(str, ">"))
+		*type = tok_gt;
+	else if (!strcmp(str, ">>"))
+		*type = tok_ggt;
+	else
+		return 0;
+	return 1;
+}
+
 static void
-lexer_handle_separator(struct lexer *lex, char sep)
+lexer_handle_separator_end(struct lexer *lex)
 {
 	struct token *tok;
-	tok = token_new(sep, NULL);
+	enum token_type type;
+	char *sepstr;
+	int valid;
+	sepstr = charbuf_get_str(&lex->buf);
+	valid = to_tok(sepstr, &type);
+	if (!valid) {
+		free(sepstr);
+		lexer_set_err(lex, separator_err);
+		return;
+	}
+	tok = token_new(type, sepstr);
 	if (!tok) {
+		free(sepstr);
 		lexer_set_err(lex, memory_err);
 		return;
 	}
 	lexer_append_token(lex, tok);
 }
 
+static int
+is_sep_char(char c)
+{
+	switch (c) {
+	case '>':
+	case '&':
+	case '<':
+		return 1;
+	default:
+		return 0;
+	}
+}
+
 static void
-lexer_step_normal(struct lexer *lex, char c)
+lexer_step_word(struct lexer *lex, char c)
 {
 	switch (c) {
 	case 0:
@@ -193,13 +235,31 @@ lexer_step_normal(struct lexer *lex, char c)
 		lex->prev_state = lex->state;
 		lex->state = escape;
 		break;
-	case '&':
-		lexer_handle_word_end(lex);
-		lexer_handle_separator(lex, c);
-		break;
 	default:
+		if (is_sep_char(c)) {
+			lexer_handle_word_end(lex);
+			if (lex->state == error)
+				return;
+			lex->state = separator;
+		}
 		if (!charbuf_add(&lex->buf, c))
 			lexer_set_err(lex, memory_err);
+	}
+}
+
+static void
+lexer_step_separator(struct lexer *lex, char c)
+{
+	if (is_sep_char(c)) {
+		if (!charbuf_add(&lex->buf, c))
+			lexer_set_err(lex, memory_err);
+	}
+	else {
+		lexer_handle_separator_end(lex);
+		if (lex->state == error)
+			return;
+		lex->state = word;
+		lexer_step_word(lex, c);
 	}
 }
 
@@ -211,7 +271,7 @@ lexer_step_quote(struct lexer *lex, char c)
 		lexer_set_err(lex, quote_err);
 		break;
 	case '"':
-		lex->state = charbuf_is_empty(&lex->buf) ? normal : empty;
+		lex->state = charbuf_is_empty(&lex->buf) ? word : empty;
 		break;
 	case '\\':
 		lex->prev_state = lex->state;
@@ -236,8 +296,8 @@ lexer_step_empty(struct lexer *lex, char c)
 		}
 		/* fall through */
 	default:
-		lex->state = normal;
-		lexer_step_normal(lex, c);
+		lex->state = word;
+		lexer_step_word(lex, c);
 	}
 }
 
@@ -262,6 +322,9 @@ lexer_step_error(struct lexer *lex)
 	case memory_err:
 		fputs("error: failed to allocate memory\n", stderr);
 		return;
+	case separator_err:
+		fputs("error: syntax error\n", stderr);
+		return;
 	case quote_err:
 		fputs("error: unclosed quote\n", stderr);
 		return;
@@ -281,7 +344,6 @@ lexer_get_tokens(struct lexer *lex)
 	return tok;
 }
 
-
 struct token *
 tokenize(const char *line)
 {
@@ -290,8 +352,11 @@ tokenize(const char *line)
 	lexer_init(&lex);
 	for (;; line++) {
 		switch (lex.state) {
-		case normal:
-			lexer_step_normal(&lex, *line);
+		case word:
+			lexer_step_word(&lex, *line);
+			break;
+		case separator:
+			lexer_step_separator(&lex, *line);
 			break;
 		case quote:
 			lexer_step_quote(&lex, *line);

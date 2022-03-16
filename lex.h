@@ -1,21 +1,14 @@
 #ifndef LEX_INCLUDED
 #define LEX_INCLUDED
 
+/* TODO: implement other tokens */
 struct token {
 	enum token_type {
-		tok_word,         /* just word */
-		tok_bg   = '&',   /* execute in background */
-		/* TODO: implement other tokens */
-		/* tok_sem  = ';', */
-		/* tok_lbr  = '(', */
-		/* tok_rbr  = ')', */
-		/* tok_gt   = '>', */
-		/* tok_lt   = '<', */
-		/* tok_pipe = '|', */
-		/* tok_ggt  = '>'*2, */
-		/* tok_llt  = '<'*2, */
-		/* tok_and  = '&'*2, */
-		/* tok_or  = '|'*2, */
+		tok_word, /* just word */
+		tok_amp,  /* & execute in background */
+		tok_gt,   /* > redirect stdout */
+		tok_lt,   /* < redirect stdin */
+		tok_ggt,  /* >> redirect stdout (append) */
 	} type;
 	char *word;
 	struct token *next;
