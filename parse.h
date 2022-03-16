@@ -6,7 +6,14 @@
 struct task {
 	int argc;
 	char **args;
-	int bg;
+	enum exec_type {
+		task_fg,
+		task_bg,
+	} type;
+	struct task_rd {
+		char *name;
+		int flags;
+	} rd[2];
 	struct task *next;
 };
 

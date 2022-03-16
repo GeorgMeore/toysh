@@ -1,16 +1,39 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <fcntl.h>
 #include "lex.h"
 #include "parse.h"
 
-static int
-argcount(char **args)
+static struct task *
+task_new(void)
 {
-	int argc;
-	for (argc = 0; args[argc]; argc++)
-		{}
-	return argc;
+	struct task *tsk;
+	tsk = malloc(sizeof(*tsk));
+	if (!tsk)
+		return NULL;
+	tsk->argc = 0;
+	tsk->args = NULL;
+	tsk->type = task_fg;
+	tsk->rd[0].name = NULL;
+	tsk->rd[1].name = NULL;
+	tsk->next = NULL;
+	return tsk;
+}
+
+static int
+task_redirect(struct task *tsk, int which, int flags, const char *name)
+{
+	char *copy;
+	if (tsk->rd[which].name)
+		return 0; /* output is already redirected */
+	copy = malloc(strlen(name) + 1);
+	if (!copy)
+		return 0;
+	strcpy(copy, name);
+	tsk->rd[which].name = copy;
+	tsk->rd[which].flags = flags;
+	return 1;
 }
 
 static void
@@ -22,22 +45,14 @@ argdelete(char **args)
 	free(args);
 }
 
-/* args must be a malloc-allocated array of malloc allocated strings
- * ownership of args is transferred here
- * tsk must be malloc-allocated */
-void
-task_init(struct task *tsk, char **args, int bg)
-{
-	tsk->argc = argcount(args);
-	tsk->args = args;
-	tsk->bg = bg;
-	tsk->next = NULL;
-}
-
 static void
 task_delete(struct task *tsk)
 {
-	argdelete(tsk->args);
+	int i;
+	for (i = 0; i < 2; i++)
+		free(tsk->rd[i].name);
+	if (tsk->args)
+		argdelete(tsk->args);
 	free(tsk);
 }
 
@@ -113,7 +128,8 @@ argbuf_is_empty(const struct argbuf *buf)
 
 struct parser {
 	enum parser_state {
-		normal,
+		command,
+		redirection,
 		finished,
 		error
 	} state;
@@ -122,18 +138,28 @@ struct parser {
 		parsing_err
 	} err_type;
 	struct argbuf args;
-	int bg;
+	int rd_which, rd_flags;
+	struct task *current; /* currently formed task */
 	struct task *head, *tail;
 };
+
+static void
+parser_set_error(struct parser *par, enum parser_error err)
+{
+	par->state = error;
+	par->err_type = err;
+}
 
 static void
 parser_init(struct parser *par)
 {
 	argbuf_init(&par->args);
-	par->state = normal;
-	par->bg = 0;
+	par->state = command;
 	par->head = NULL;
 	par->tail = NULL;
+	par->current = task_new();
+	if (!par->current)
+		parser_set_error(par, memory_err);
 }
 
 static void
@@ -141,13 +167,7 @@ parser_destroy(struct parser *par)
 {
 	argbuf_destroy(&par->args);
 	task_list_delete(par->head);
-}
-
-static void
-parser_set_error(struct parser *par, enum parser_error err)
-{
-	par->state = error;
-	par->err_type = err;
+	task_list_delete(par->current);
 }
 
 static void
@@ -166,21 +186,42 @@ parser_append_task(struct parser *par, struct task *tsk)
 static void
 parser_form_task(struct parser *par)
 {
-	struct task *tsk;
+	struct task *new;
 	char **argv;
-	tsk = malloc(sizeof(*tsk));
-	if (!tsk) {
+	par->current->argc = par->args.argc;
+	argv = argbuf_get_argv(&par->args);
+	par->current->args = argv;
+	parser_append_task(par, par->current);
+	new = task_new();
+	if (!new) {
 		parser_set_error(par, memory_err);
 		return;
 	}
-	argv = argbuf_get_argv(&par->args);
-	task_init(tsk, argv, par->bg);
-	parser_append_task(par, tsk);
-	par->bg = 0;
+	par->current = new;
 }
 
 static void
-parser_step_normal(struct parser *par, const struct token *tok)
+parser_step_redirection(struct parser *par, const struct token *tok)
+{
+	if (!tok) {
+		parser_set_error(par, parsing_err);
+		return;
+	}
+	switch (tok->type) {
+		case tok_word:
+			if (!task_redirect(par->current, par->rd_which, par->rd_flags, tok->word)) {
+				parser_set_error(par, memory_err);
+				return;
+			}
+			par->state = command;
+			break;
+		default:
+			parser_set_error(par, parsing_err);
+	}
+}
+
+static void
+parser_step_command(struct parser *par, const struct token *tok)
 {
 	if (!tok) {
 		par->state = finished;
@@ -198,8 +239,23 @@ parser_step_normal(struct parser *par, const struct token *tok)
 			parser_set_error(par, parsing_err);
 			return;
 		}
-		par->bg = 1;
+		par->current->type = task_bg;
 		parser_form_task(par);
+		break;
+	case tok_gt:
+		par->state = redirection;
+		par->rd_which = 1;
+		par->rd_flags = O_WRONLY|O_CREAT;
+		break;
+	case tok_ggt:
+		par->state = redirection;
+		par->rd_which = 1;
+		par->rd_flags = O_WRONLY|O_CREAT|O_APPEND;
+		break;
+	case tok_lt:
+		par->state = redirection;
+		par->rd_which = 0;
+		par->rd_flags = O_RDONLY;
 		break;
 	default:
 		fprintf(stderr, "error: token %s not implemented yet\n", tok->word);
@@ -238,8 +294,11 @@ parse(const struct token *tok)
 	parser_init(&par);
 	for(;;) {
 		switch (par.state) {
-		case normal:
-			parser_step_normal(&par, tok);
+		case command:
+			parser_step_command(&par, tok);
+			break;
+		case redirection:
+			parser_step_redirection(&par, tok);
 			break;
 		case finished:
 			tasks = parser_get_tasks(&par);

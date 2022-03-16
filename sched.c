@@ -30,7 +30,7 @@ sched(const struct task *tsk)
 				perror("error: exec");
 				exit(1);
 			}
-			if (!tsk->bg) {
+			if (tsk->type == task_fg) {
 				int status;
 				waitpid(pid, &status, 0);
 			}
