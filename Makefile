@@ -1,7 +1,7 @@
 CC = gcc
 CFLAGS = -Wall -Wextra -g
 
-SRC = input.c lex.c parse.c sched.c sh.c
+SRC = util.c input.c lex.c parse.c sched.c sh.c
 OBJ = $(SRC:.c=.o)
 
 default: sh

@@ -1,8 +1,8 @@
 #include <stdlib.h>
 #include <stdio.h>
-#include <string.h>
 #include <unistd.h>
 #include <sys/wait.h>
+#include "util.h"
 #include "sched.h"
 
 void
@@ -11,11 +11,11 @@ sched(const struct task *tsk)
 	while (waitpid(-1, NULL, WNOHANG) > 0)
 		{} /* collect zombies */
 	for (; tsk; tsk = tsk->next) {
-		if (!strcmp(tsk->args[0], "cd")) {
+		if (str_equal(tsk->argv[0], "cd")) {
 			if (tsk->argc == 1)
 				chdir(getenv("HOME"));
 			else
-				chdir(tsk->args[1]);
+				chdir(tsk->argv[1]);
 		}
 		else {
 			int pid;
@@ -26,7 +26,7 @@ sched(const struct task *tsk)
 				return;
 			}
 			if (pid == 0) {
-				execvp(tsk->args[0], tsk->args);
+				execvp(tsk->argv[0], tsk->argv);
 				perror("error: exec");
 				exit(1);
 			}

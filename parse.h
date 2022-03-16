@@ -5,7 +5,7 @@
 
 struct task {
 	int argc;
-	char **args;
+	char **argv;
 	enum exec_type {
 		task_fg,
 		task_bg,

@@ -1,7 +1,7 @@
 #include <stdio.h>
-#include <string.h>
 #include <stdlib.h>
 #include <fcntl.h>
+#include "util.h"
 #include "lex.h"
 #include "parse.h"
 
@@ -9,11 +9,11 @@ static struct task *
 task_new(void)
 {
 	struct task *tsk;
-	tsk = malloc(sizeof(*tsk));
+	tsk = emalloc(sizeof(*tsk));
 	if (!tsk)
 		return NULL;
 	tsk->argc = 0;
-	tsk->args = NULL;
+	tsk->argv = NULL;
 	tsk->type = task_fg;
 	tsk->rd[0].name = NULL;
 	tsk->rd[1].name = NULL;
@@ -22,15 +22,18 @@ task_new(void)
 }
 
 static int
+task_is_redirected(struct task *tsk, int which)
+{
+	return tsk->rd[which].name != NULL;
+}
+
+static int
 task_redirect(struct task *tsk, int which, int flags, const char *name)
 {
 	char *copy;
-	if (tsk->rd[which].name)
-		return 0; /* output is already redirected */
-	copy = malloc(strlen(name) + 1);
+	copy = str_copy(name);
 	if (!copy)
 		return 0;
-	strcpy(copy, name);
 	tsk->rd[which].name = copy;
 	tsk->rd[which].flags = flags;
 	return 1;
@@ -51,8 +54,8 @@ task_delete(struct task *tsk)
 	int i;
 	for (i = 0; i < 2; i++)
 		free(tsk->rd[i].name);
-	if (tsk->args)
-		argdelete(tsk->args);
+	if (tsk->argv)
+		argdelete(tsk->argv);
 	free(tsk);
 }
 
@@ -94,16 +97,15 @@ argbuf_append(struct argbuf *buf, const char *arg)
 	char **tmp;
 	if (buf->argc > buf->cap - 1) {
 		buf->cap += 24;
-		tmp = realloc(buf->argv, buf->cap * sizeof(*buf->argv));
+		tmp = erealloc(buf->argv, buf->cap * sizeof(*buf->argv));
 		if (!tmp)
 			return 0;
 		buf->argv = tmp;
 	}
 	tmp = buf->argv + buf->argc;
-	*tmp = malloc(strlen(arg) + 1);
+	*tmp = str_copy(arg);
 	if (!*tmp)
 		return 0;
-	strcpy(*tmp, arg);
 	*(tmp + 1) = NULL;
 	buf->argc++;
 	return 1;
@@ -133,22 +135,11 @@ struct parser {
 		finished,
 		error
 	} state;
-	enum parser_error {
-		memory_err,
-		parsing_err
-	} err_type;
 	struct argbuf args;
 	int rd_which, rd_flags;
 	struct task *current; /* currently formed task */
 	struct task *head, *tail;
 };
-
-static void
-parser_set_error(struct parser *par, enum parser_error err)
-{
-	par->state = error;
-	par->err_type = err;
-}
 
 static void
 parser_init(struct parser *par)
@@ -159,15 +150,15 @@ parser_init(struct parser *par)
 	par->tail = NULL;
 	par->current = task_new();
 	if (!par->current)
-		parser_set_error(par, memory_err);
+		par->state = error;
 }
 
 static void
 parser_destroy(struct parser *par)
 {
 	argbuf_destroy(&par->args);
+	task_delete(par->current);
 	task_list_delete(par->head);
-	task_list_delete(par->current);
 }
 
 static void
@@ -190,11 +181,11 @@ parser_form_task(struct parser *par)
 	char **argv;
 	par->current->argc = par->args.argc;
 	argv = argbuf_get_argv(&par->args);
-	par->current->args = argv;
+	par->current->argv = argv;
 	parser_append_task(par, par->current);
 	new = task_new();
 	if (!new) {
-		parser_set_error(par, memory_err);
+		par->state = error;
 		return;
 	}
 	par->current = new;
@@ -204,19 +195,26 @@ static void
 parser_step_redirection(struct parser *par, const struct token *tok)
 {
 	if (!tok) {
-		parser_set_error(par, parsing_err);
+		fputs("sh: broken redirection: unexpected newline\n", stderr);
+		par->state = error;
 		return;
 	}
 	switch (tok->type) {
 		case tok_word:
+			if (task_is_redirected(par->current, par->rd_which)) {
+				fputs("sh: broken redirection: already redirected\n", stderr);
+				par->state = error;
+				return;
+			}
 			if (!task_redirect(par->current, par->rd_which, par->rd_flags, tok->word)) {
-				parser_set_error(par, memory_err);
+				par->state = error;
 				return;
 			}
 			par->state = command;
 			break;
 		default:
-			parser_set_error(par, parsing_err);
+			fprintf(stderr, "sh: broken redirection: no filename\n");
+			par->state = error;
 	}
 }
 
@@ -232,11 +230,12 @@ parser_step_command(struct parser *par, const struct token *tok)
 	switch (tok->type) {
 	case tok_word:
 		if (!argbuf_append(&par->args, tok->word))
-			parser_set_error(par, memory_err);
+			par->state = error;
 		break;
 	case tok_amp:
 		if (argbuf_is_empty(&par->args)) {
-			parser_set_error(par, parsing_err);
+			fprintf(stderr, "sh: parsing error near '%s'\n", tok->word);
+			par->state = error;
 			return;
 		}
 		par->current->type = task_bg;
@@ -256,22 +255,6 @@ parser_step_command(struct parser *par, const struct token *tok)
 		par->state = redirection;
 		par->rd_which = 0;
 		par->rd_flags = O_RDONLY;
-		break;
-	default:
-		fprintf(stderr, "error: token %s not implemented yet\n", tok->word);
-		parser_set_error(par, parsing_err);
-	}
-}
-
-static void
-parser_step_error(struct parser *par)
-{
-	switch (par->err_type) {
-	case parsing_err:
-		fputs("error: failed to parse\n", stderr);
-		break;
-	case memory_err:
-		fputs("error: failed to allocate memory\n", stderr);
 		break;
 	}
 }
@@ -305,7 +288,6 @@ parse(const struct token *tok)
 			parser_destroy(&par);
 			return tasks;
 		case error:
-			parser_step_error(&par);
 			parser_destroy(&par);
 			return NULL;
 		}

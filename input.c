@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include "util.h"
 #include "input.h"
 
 int
@@ -16,7 +17,7 @@ read_line(char **lineptr)
 		if (read >= size - 1) {
 			char *tmp;
 			size += 256;
-			tmp = realloc(*lineptr, size);
+			tmp = erealloc(*lineptr, size);
 			if (!tmp) {
 				free(*lineptr);
 				return 0;
