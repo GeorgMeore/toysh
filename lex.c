@@ -4,6 +4,8 @@
 #include "input.h"
 #include "lex.h"
 
+#define BUFCAP 256
+
 /* word must be malloc-allocated string
  * ownership of word is transferred here */
 static struct token *
@@ -37,61 +39,6 @@ token_list_delete(struct token *head)
 	}
 }
 
-struct charbuf {
-	char *chars;
-	int cap;
-	int size;
-};
-
-static void
-charbuf_init(struct charbuf *buf)
-{
-	buf->cap = 0;
-	buf->size = 0;
-	buf->chars = NULL;
-}
-
-static void
-charbuf_destroy(struct charbuf *buf)
-{
-	free(buf->chars);
-}
-
-static char *
-charbuf_get_str(struct charbuf *buf)
-{
-	char *tmp;
-	tmp = buf->chars;
-	buf->chars = NULL;
-	buf->cap = 0;
-	buf->size = 0;
-	return tmp;
-}
-
-static int
-charbuf_add(struct charbuf *buf, char c)
-{
-	char *tmp;
-	/* allocate more memory as needed */
-	if (buf->size >= buf->cap - 1) {
-		buf->cap += 256;
-		tmp = erealloc(buf->chars, buf->cap);
-		if (!tmp)
-			return 0;
-		buf->chars = tmp;
-	}
-	buf->chars[buf->size] = c;
-	buf->chars[buf->size+1] = 0;
-	buf->size++;
-	return 1;
-}
-
-static int
-charbuf_is_empty(const struct charbuf *buf)
-{
-	return !buf->size;
-}
-
 struct lexer {
 	enum lexer_state {
 		word,
@@ -102,16 +49,25 @@ struct lexer {
 		finished,
 		error
 	} state, prev_state;
-	struct charbuf buf;
+	char *buf;
+	int bufsize;
+	int bufcap;
 	struct token *head, *tail;
 };
 
 static void
 lexer_init(struct lexer *lex)
 {
-	charbuf_init(&lex->buf);
 	lex->state = word;
 	lex->prev_state = word;
+	lex->buf = emalloc(BUFCAP);
+	if (!lex->buf) {
+		lex->state = error;
+		return;
+	}
+	lex->buf[0] = 0;
+	lex->bufsize = 0;
+	lex->bufcap = BUFCAP;
 	lex->head = NULL;
 	lex->tail = NULL;
 }
@@ -119,8 +75,33 @@ lexer_init(struct lexer *lex)
 static void
 lexer_destroy(struct lexer *lex)
 {
-	charbuf_destroy(&lex->buf);
+	free(lex->buf);
 	token_list_delete(lex->head);
+}
+
+static void
+lexer_buf_add(struct lexer *lex, char c)
+{
+	/* allocate more memory as needed */
+	if (lex->bufsize >= lex->bufcap - 1) {
+		char *tmp;
+		lex->bufcap += BUFCAP;
+		tmp = erealloc(lex->buf, lex->bufcap);
+		if (!tmp) {
+			lex->state = error;
+			return;
+		}
+		lex->buf = tmp;
+	}
+	lex->buf[lex->bufsize++] = c;
+	lex->buf[lex->bufsize] = 0; /* always keep valid string in buffer */
+}
+
+static void
+lexer_buf_reset(struct lexer *lex)
+{
+	lex->bufsize = 0;
+	lex->buf[0] = 0; /* always keep valid string in buffer */
 }
 
 static void
@@ -137,21 +118,25 @@ lexer_append_token(struct lexer *lex, struct token *tok)
 }
 
 static void
-lexer_handle_word_end(struct lexer *lex)
+lexer_form_word(struct lexer *lex)
 {
-	if (!charbuf_is_empty(&lex->buf)) {
-		char *word;
-		struct token *tok;
-		word = charbuf_get_str(&lex->buf);
-		tok = token_new(tok_word, word);
-		if (!tok) {
-			lex->state = error;
-			return;
-		}
-		lexer_append_token(lex, tok);
+	char *word;
+	struct token *tok;
+	word = str_copy(lex->buf);
+	lexer_buf_reset(lex);
+	if (!word) {
+		lex->state = error;
+		return;
 	}
+	tok = token_new(tok_word, word);
+	if (!tok) {
+		lex->state = error;
+		return;
+	}
+	return lexer_append_token(lex, tok);
 }
 
+/* try to convert a string to a token */
 static int
 to_tok(const char *str, enum token_type *type)
 {
@@ -169,15 +154,18 @@ to_tok(const char *str, enum token_type *type)
 }
 
 static void
-lexer_handle_separator_end(struct lexer *lex)
+lexer_form_separator(struct lexer *lex)
 {
 	struct token *tok;
 	enum token_type type;
 	char *sepstr;
-	int valid;
-	sepstr = charbuf_get_str(&lex->buf);
-	valid = to_tok(sepstr, &type);
-	if (!valid) {
+	sepstr = str_copy(lex->buf);
+	lexer_buf_reset(lex);
+	if (!sepstr) {
+		lex->state = error;
+		return;
+	}
+	if (!to_tok(sepstr, &type)) {
 		fprintf(stderr, "sh: syntax error near '%s'\n", sepstr);
 		free(sepstr);
 		lex->state = error;
@@ -189,7 +177,7 @@ lexer_handle_separator_end(struct lexer *lex)
 		lex->state = error;
 		return;
 	}
-	lexer_append_token(lex, tok);
+	return lexer_append_token(lex, tok);
 }
 
 static int
@@ -214,8 +202,9 @@ lexer_step_word(struct lexer *lex, char c)
 		/* fall through */
 	case ' ':
 	case '\t':
-		lexer_handle_word_end(lex);
-		break;
+		if (lex->bufsize)
+			lexer_form_word(lex);
+		return;
 	case '"':
 		lex->state = quote;
 		break;
@@ -225,29 +214,28 @@ lexer_step_word(struct lexer *lex, char c)
 		break;
 	default:
 		if (is_sep_char(c)) {
-			lexer_handle_word_end(lex);
-			if (lex->state == error)
-				return;
+			if (lex->bufsize) {
+				lexer_form_word(lex);
+				if (lex->state == error)
+					return;
+			}
 			lex->state = separator;
 		}
-		if (!charbuf_add(&lex->buf, c))
-			lex->state = error;
+		return lexer_buf_add(lex, c);
 	}
 }
 
 static void
 lexer_step_separator(struct lexer *lex, char c)
 {
-	if (is_sep_char(c)) {
-		if (!charbuf_add(&lex->buf, c))
-			lex->state = error;
-	}
+	if (is_sep_char(c))
+		return lexer_buf_add(lex, c);
 	else {
-		lexer_handle_separator_end(lex);
+		lexer_form_separator(lex);
 		if (lex->state == error)
 			return;
 		lex->state = word;
-		lexer_step_word(lex, c);
+		return lexer_step_word(lex, c);
 	}
 }
 
@@ -260,18 +248,14 @@ lexer_step_quote(struct lexer *lex, char c)
 		lex->state = error;
 		break;
 	case '"':
-		if (charbuf_is_empty(&lex->buf))
-			lex->state = empty_quote;
-		else
-			lex->state = word;
+		lex->state = lex->bufsize ? word : empty_quote;
 		break;
 	case '\\':
 		lex->prev_state = lex->state;
 		lex->state = escape;
 		break;
 	default:
-		if (!charbuf_add(&lex->buf, c))
-			lex->state = error;
+		return lexer_buf_add(lex, c);
 	}
 }
 
@@ -282,14 +266,13 @@ lexer_step_empty_quote(struct lexer *lex, char c)
 	case 0:
 	case ' ':
 	case '\t':
-		if (!charbuf_add(&lex->buf, 0)) {
-			lex->state = error;
+		lexer_form_word(lex);
+		if (lex->state == error)
 			return;
-		}
 		/* fall through */
 	default:
 		lex->state = word;
-		lexer_step_word(lex, c);
+		return lexer_step_word(lex, c);
 	}
 }
 
@@ -303,8 +286,7 @@ lexer_step_escape(struct lexer *lex, char c)
 		break;
 	default:
 		lex->state = lex->prev_state;
-		if (!charbuf_add(&lex->buf, c))
-			lex->state = error;
+		return lexer_buf_add(lex, c);
 	}
 }
 

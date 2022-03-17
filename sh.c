@@ -18,4 +18,5 @@ main(void)
 		token_list_delete(tokens);
 		free(line);
 	}
+	return 0;
 }
