@@ -10,8 +10,6 @@ task_new(void)
 {
 	struct task *tsk;
 	tsk = emalloc(sizeof(*tsk));
-	if (!tsk)
-		return NULL;
 	tsk->argc = 0;
 	tsk->argv = NULL;
 	tsk->type = task_fg;
@@ -27,16 +25,11 @@ task_is_redirected(struct task *tsk, int which)
 	return tsk->rd[which].name != NULL;
 }
 
-static int
+static void
 task_redirect(struct task *tsk, int which, int flags, const char *name)
 {
-	char *copy;
-	copy = str_copy(name);
-	if (!copy)
-		return 0;
-	tsk->rd[which].name = copy;
+	tsk->rd[which].name = str_copy(name);
 	tsk->rd[which].flags = flags;
-	return 1;
 }
 
 static void
@@ -91,24 +84,18 @@ argbuf_destroy(struct argbuf *buf)
 		argdelete(buf->argv);
 }
 
-static int
+static void
 argbuf_append(struct argbuf *buf, const char *arg)
 {
 	char **tmp;
 	if (buf->argc > buf->cap - 1) {
 		buf->cap += 24;
-		tmp = erealloc(buf->argv, buf->cap * sizeof(*buf->argv));
-		if (!tmp)
-			return 0;
-		buf->argv = tmp;
+		buf->argv = erealloc(buf->argv, buf->cap * sizeof(*buf->argv));
 	}
 	tmp = buf->argv + buf->argc;
-	*tmp = str_copy(arg);
-	if (!*tmp)
-		return 0;
-	*(tmp + 1) = NULL;
+	tmp[0] = str_copy(arg);
+	tmp[1] = NULL;
 	buf->argc++;
-	return 1;
 }
 
 static char **
@@ -149,8 +136,6 @@ parser_init(struct parser *par)
 	par->head = NULL;
 	par->tail = NULL;
 	par->current = task_new();
-	if (!par->current)
-		par->state = error;
 }
 
 static void
@@ -177,18 +162,12 @@ parser_append_task(struct parser *par, struct task *tsk)
 static void
 parser_form_task(struct parser *par)
 {
-	struct task *new;
 	char **argv;
-	par->current->argc = par->args.argc;
 	argv = argbuf_get_argv(&par->args);
+	par->current->argc = par->args.argc;
 	par->current->argv = argv;
 	parser_append_task(par, par->current);
-	new = task_new();
-	if (!new) {
-		par->state = error;
-		return;
-	}
-	par->current = new;
+	par->current = task_new();
 }
 
 static void
@@ -206,10 +185,7 @@ parser_step_redirection(struct parser *par, const struct token *tok)
 				par->state = error;
 				return;
 			}
-			if (!task_redirect(par->current, par->rd_which, par->rd_flags, tok->word)) {
-				par->state = error;
-				return;
-			}
+			task_redirect(par->current, par->rd_which, par->rd_flags, tok->word);
 			par->state = command;
 			break;
 		default:
@@ -229,8 +205,7 @@ parser_step_command(struct parser *par, const struct token *tok)
 	}
 	switch (tok->type) {
 	case tok_word:
-		if (!argbuf_append(&par->args, tok->word))
-			par->state = error;
+		argbuf_append(&par->args, tok->word);
 		break;
 	case tok_amp:
 		if (argbuf_is_empty(&par->args)) {

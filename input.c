@@ -15,14 +15,8 @@ read_line(char **lineptr)
 		fputs("> ", stderr);
 	for (*lineptr = NULL; ;read++) {
 		if (read >= size - 1) {
-			char *tmp;
 			size += 256;
-			tmp = erealloc(*lineptr, size);
-			if (!tmp) {
-				free(*lineptr);
-				return 0;
-			}
-			*lineptr = tmp;
+			*lineptr = erealloc(*lineptr, size);
 		}
 		c = getchar();
 		switch (c) {

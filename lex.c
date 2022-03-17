@@ -13,8 +13,6 @@ token_new(enum token_type type, char *word)
 {
 	struct token *tok;
 	tok = emalloc(sizeof(*tok));
-	if (!tok)
-		return NULL;
 	tok->type = type;
 	tok->word = word;
 	tok->next = NULL;
@@ -61,10 +59,6 @@ lexer_init(struct lexer *lex)
 	lex->state = word;
 	lex->prev_state = word;
 	lex->buf = emalloc(BUFCAP);
-	if (!lex->buf) {
-		lex->state = error;
-		return;
-	}
 	lex->buf[0] = 0;
 	lex->bufsize = 0;
 	lex->bufcap = BUFCAP;
@@ -87,10 +81,6 @@ lexer_buf_add(struct lexer *lex, char c)
 		char *tmp;
 		lex->bufcap += BUFCAP;
 		tmp = erealloc(lex->buf, lex->bufcap);
-		if (!tmp) {
-			lex->state = error;
-			return;
-		}
 		lex->buf = tmp;
 	}
 	lex->buf[lex->bufsize++] = c;
@@ -124,15 +114,7 @@ lexer_form_word(struct lexer *lex)
 	struct token *tok;
 	word = str_copy(lex->buf);
 	lexer_buf_reset(lex);
-	if (!word) {
-		lex->state = error;
-		return;
-	}
 	tok = token_new(tok_word, word);
-	if (!tok) {
-		lex->state = error;
-		return;
-	}
 	return lexer_append_token(lex, tok);
 }
 
@@ -161,10 +143,6 @@ lexer_form_separator(struct lexer *lex)
 	char *sepstr;
 	sepstr = str_copy(lex->buf);
 	lexer_buf_reset(lex);
-	if (!sepstr) {
-		lex->state = error;
-		return;
-	}
 	if (!to_tok(sepstr, &type)) {
 		fprintf(stderr, "sh: syntax error near '%s'\n", sepstr);
 		free(sepstr);
@@ -172,11 +150,6 @@ lexer_form_separator(struct lexer *lex)
 		return;
 	}
 	tok = token_new(type, sepstr);
-	if (!tok) {
-		free(sepstr);
-		lex->state = error;
-		return;
-	}
 	return lexer_append_token(lex, tok);
 }
 
@@ -214,11 +187,8 @@ lexer_step_word(struct lexer *lex, char c)
 		break;
 	default:
 		if (is_sep_char(c)) {
-			if (lex->bufsize) {
+			if (lex->bufsize)
 				lexer_form_word(lex);
-				if (lex->state == error)
-					return;
-			}
 			lex->state = separator;
 		}
 		return lexer_buf_add(lex, c);
@@ -267,8 +237,6 @@ lexer_step_empty_quote(struct lexer *lex, char c)
 	case ' ':
 	case '\t':
 		lexer_form_word(lex);
-		if (lex->state == error)
-			return;
 		/* fall through */
 	default:
 		lex->state = word;

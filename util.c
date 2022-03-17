@@ -8,8 +8,10 @@ emalloc(int size)
 {
 	void *ptr;
 	ptr = malloc(size);
-	if (!ptr)
-		perror("sh: malloc");
+	if (!ptr) {
+		perror("sh: allocation failed");
+		abort();
+	}
 	return ptr;
 }
 
@@ -18,8 +20,10 @@ erealloc(void *ptr, int size)
 {
 	void *new;
 	new = realloc(ptr, size);
-	if (!new)
-		perror("sh: realloc");
+	if (!new) {
+		perror("sh: allocation failed");
+		abort();
+	}
 	return new;
 }
 
