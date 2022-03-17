@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -Wall -Wextra -g
+CFLAGS = -ansi -Wall -Wextra -g
 
 SRC = util.c input.c lex.c parse.c sched.c sh.c
 OBJ = $(SRC:.c=.o)

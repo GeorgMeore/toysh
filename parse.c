@@ -213,7 +213,7 @@ parser_step_redirection(struct parser *par, const struct token *tok)
 			par->state = command;
 			break;
 		default:
-			fprintf(stderr, "sh: broken redirection: no filename\n");
+			fputs("sh: broken redirection: no filename\n", stderr);
 			par->state = error;
 	}
 }

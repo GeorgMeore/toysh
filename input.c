@@ -9,7 +9,7 @@ read_line(char **lineptr)
 {
 	int read = 0;
 	int size = 0;
-	int tty = isatty(fileno(stdin));
+	int tty = isatty(1);
 	int c;
 	if (tty)
 		fputs("> ", stderr);
