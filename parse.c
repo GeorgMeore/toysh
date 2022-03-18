@@ -42,6 +42,14 @@ argdelete(char **args)
 }
 
 static void
+task_list_append(struct task **list, struct task *new)
+{
+	while (*list != NULL)
+		*list = (*list)->next;
+	*list = new;
+}
+
+static void
 task_delete(struct task *tsk)
 {
 	int i;
@@ -98,15 +106,12 @@ argbuf_append(struct argbuf *buf, const char *arg)
 	buf->argc++;
 }
 
-static char **
-argbuf_get_argv(struct argbuf *buf)
+static void
+argbuf_reset(struct argbuf *buf)
 {
-	char **tmp;
-	tmp = buf->argv;
 	buf->argc = 0;
 	buf->argv = NULL;
 	buf->cap = 0;
-	return tmp;
 }
 
 static int
@@ -115,158 +120,91 @@ argbuf_is_empty(const struct argbuf *buf)
 	return !buf->argc;
 }
 
-struct parser {
-	enum parser_state {
-		command,
-		redirection,
-		finished,
-		error
-	} state;
-	struct argbuf args;
-	int rd_which, rd_flags;
-	struct task *current; /* currently formed task */
-	struct task *head, *tail;
-};
-
 static void
-parser_init(struct parser *par)
+to_flags(enum token_type rd_type, int *flags, int *which)
 {
-	argbuf_init(&par->args);
-	par->state = command;
-	par->head = NULL;
-	par->tail = NULL;
-	par->current = task_new();
-}
-
-static void
-parser_destroy(struct parser *par)
-{
-	argbuf_destroy(&par->args);
-	task_delete(par->current);
-	task_list_delete(par->head);
-}
-
-static void
-parser_append_task(struct parser *par, struct task *tsk)
-{
-	if (par->tail) {
-		par->tail->next = tsk;
-		par->tail = tsk;
-	}
-	else {
-		par->head = tsk;
-		par->tail = tsk;
-	}
-}
-
-static void
-parser_form_task(struct parser *par)
-{
-	char **argv;
-	argv = argbuf_get_argv(&par->args);
-	par->current->argc = par->args.argc;
-	par->current->argv = argv;
-	parser_append_task(par, par->current);
-	par->current = task_new();
-}
-
-static void
-parser_step_redirection(struct parser *par, const struct token *tok)
-{
-	if (!tok) {
-		fputs("sh: broken redirection: unexpected newline\n", stderr);
-		par->state = error;
-		return;
-	}
-	switch (tok->type) {
-		case tok_word:
-			if (task_is_redirected(par->current, par->rd_which)) {
-				fputs("sh: broken redirection: already redirected\n", stderr);
-				par->state = error;
-				return;
-			}
-			task_redirect(par->current, par->rd_which, par->rd_flags, tok->word);
-			par->state = command;
-			break;
-		default:
-			fputs("sh: broken redirection: no filename\n", stderr);
-			par->state = error;
-	}
-}
-
-static void
-parser_step_command(struct parser *par, const struct token *tok)
-{
-	if (!tok) {
-		par->state = finished;
-		if (!argbuf_is_empty(&par->args))
-			parser_form_task(par);
-		return;
-	}
-	switch (tok->type) {
-	case tok_word:
-		argbuf_append(&par->args, tok->word);
-		break;
-	case tok_amp:
-		if (argbuf_is_empty(&par->args)) {
-			fprintf(stderr, "sh: parsing error near '%s'\n", tok->word);
-			par->state = error;
-			return;
-		}
-		par->current->type = task_bg;
-		parser_form_task(par);
-		break;
+	switch (rd_type) {
 	case tok_gt:
-		par->state = redirection;
-		par->rd_which = 1;
-		par->rd_flags = O_WRONLY|O_CREAT;
-		break;
+		*flags = O_WRONLY|O_CREAT;
+		*which = 1;
+		return;
 	case tok_ggt:
-		par->state = redirection;
-		par->rd_which = 1;
-		par->rd_flags = O_WRONLY|O_CREAT|O_APPEND;
-		break;
+		*flags = O_WRONLY|O_CREAT|O_APPEND;
+		*which = 1;
+		return;
 	case tok_lt:
-		par->state = redirection;
-		par->rd_which = 0;
-		par->rd_flags = O_RDONLY;
-		break;
+		*flags = O_RDONLY;
+		*which = 0;
+		return;
+	default: /* this should never happen */
 	}
 }
 
-static struct task *
-parser_get_tasks(struct parser *par)
+static int
+is_redirection(enum token_type type)
 {
-	struct task *tasks;
-	tasks = par->head;
-	par->head = NULL;
-	par->tail = NULL;
-	return tasks;
+	switch (type) {
+	case tok_gt:
+	case tok_ggt:
+	case tok_lt:
+		return 1;
+	default:
+		return 0;
+	}
 }
 
 struct task *
 parse(const struct token *tok)
 {
-	struct parser par;
-	struct task *tasks;
-	parser_init(&par);
-	for(;;) {
-		switch (par.state) {
-		case command:
-			parser_step_command(&par, tok);
-			break;
-		case redirection:
-			parser_step_redirection(&par, tok);
-			break;
-		case finished:
-			tasks = parser_get_tasks(&par);
-			parser_destroy(&par);
-			return tasks;
-		case error:
-			parser_destroy(&par);
-			return NULL;
-		}
-		if (tok)
+	struct task *tasks = NULL, *current;
+	struct argbuf args;
+	argbuf_init(&args);
+	while (tok) {
+		current = task_new();
+		/* process command arguments */
+		while (tok && tok->type == tok_word) {
+			argbuf_append(&args, tok->word);
 			tok = tok->next;
+		}
+		if (argbuf_is_empty(&args)) {
+			fputs("sh: no command\n", stderr);
+			goto fail;
+		}
+		current->argc = args.argc;
+		current->argv = args.argv;
+		argbuf_reset(&args);
+		/* process redirections */
+		while (tok && is_redirection(tok->type)) {
+			int flags, which;
+			to_flags(tok->type, &flags, &which);
+			tok = tok->next;
+			if (!tok || tok->type != tok_word) {
+				fputs("sh: broken redirection: no filename\n", stderr);
+				goto fail;
+			}
+			if (task_is_redirected(current, which)) {
+				fputs("sh: broken redirection: already redirected\n", stderr);
+				goto fail;
+			}
+			task_redirect(current, which, flags, tok->word);
+			tok = tok->next;
+		}
+		/* process command separators */
+		if (tok && tok->type != tok_amp) {
+			fprintf(stderr, "sh: unexpected token: '%s'\n", tok->word);
+			goto fail;
+		}
+		if (tok && tok->type == tok_amp) {
+			current->type = task_bg;
+			tok = tok->next;
+		}
+		task_list_append(&tasks, current);
 	}
+	argbuf_destroy(&args);
+	return tasks;
+fail:
+	argbuf_destroy(&args);
+	task_list_delete(tasks);
+	task_delete(current);
+	return NULL;
 }
