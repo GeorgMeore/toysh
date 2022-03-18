@@ -1,7 +1,6 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include "util.h"
-#include "input.h"
 #include "lex.h"
 
 #define BUFCAP 256

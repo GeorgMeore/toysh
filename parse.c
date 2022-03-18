@@ -13,8 +13,8 @@ task_new(void)
 	tsk->argc = 0;
 	tsk->argv = NULL;
 	tsk->type = task_fg;
-	tsk->rd[0].name = NULL;
-	tsk->rd[1].name = NULL;
+	tsk->rd[0].file = NULL;
+	tsk->rd[1].file = NULL;
 	tsk->next = NULL;
 	return tsk;
 }
@@ -22,13 +22,13 @@ task_new(void)
 static int
 task_is_redirected(struct task *tsk, int which)
 {
-	return tsk->rd[which].name != NULL;
+	return tsk->rd[which].file != NULL;
 }
 
 static void
-task_redirect(struct task *tsk, int which, int flags, const char *name)
+task_redirect(struct task *tsk, int which, int flags, const char *file)
 {
-	tsk->rd[which].name = str_copy(name);
+	tsk->rd[which].file = str_copy(file);
 	tsk->rd[which].flags = flags;
 }
 
@@ -54,7 +54,7 @@ task_delete(struct task *tsk)
 {
 	int i;
 	for (i = 0; i < 2; i++)
-		free(tsk->rd[i].name);
+		free(tsk->rd[i].file);
 	if (tsk->argv)
 		argdelete(tsk->argv);
 	free(tsk);

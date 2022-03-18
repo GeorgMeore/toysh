@@ -11,7 +11,7 @@ struct task {
 		task_bg,
 	} type;
 	struct task_rd {
-		char *name;
+		char *file;
 		int flags;
 	} rd[2];
 	struct task *next;
