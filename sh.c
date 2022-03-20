@@ -3,6 +3,7 @@
 #include "lex.h"
 #include "parse.h"
 #include "sched.h"
+#include "debug.h"
 
 int
 main(void)
@@ -11,7 +12,7 @@ main(void)
 	while (read_line(&line)) {
 		struct token *tokens;
 		struct task *tasks;
-		tokens = tokenize(line);
+		tokens = lex(line);
 		tasks = parse(tokens);
 		sched(tasks);
 		task_list_delete(tasks);

@@ -45,7 +45,7 @@ static void
 task_list_append(struct task **list, struct task *new)
 {
 	while (*list != NULL)
-		*list = (*list)->next;
+		list = &(*list)->next;
 	*list = new;
 }
 

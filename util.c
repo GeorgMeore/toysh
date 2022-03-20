@@ -6,8 +6,7 @@
 void *
 emalloc(int size)
 {
-	void *ptr;
-	ptr = malloc(size);
+	void *ptr = malloc(size);
 	if (!ptr) {
 		perror("sh: allocation failed");
 		abort();
@@ -18,8 +17,7 @@ emalloc(int size)
 void *
 erealloc(void *ptr, int size)
 {
-	void *new;
-	new = realloc(ptr, size);
+	void *new = realloc(ptr, size);
 	if (!new) {
 		perror("sh: allocation failed");
 		abort();
@@ -30,10 +28,7 @@ erealloc(void *ptr, int size)
 char *
 str_copy(const char *str)
 {
-	char *copy;
-	copy = emalloc(strlen(str) + 1);
-	if (!copy)
-		return NULL;
+	char *copy = emalloc(strlen(str) + 1);
 	strcpy(copy, str);
 	return copy;
 }

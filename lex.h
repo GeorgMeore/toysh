@@ -16,6 +16,6 @@ struct token {
 
 void token_list_delete(struct token *head);
 
-struct token *tokenize(const char *line);
+struct token *lex(const char *line);
 
 #endif /* LEX_INCLUDED */
