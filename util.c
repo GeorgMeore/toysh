@@ -8,7 +8,7 @@ emalloc(int size)
 {
 	void *ptr = malloc(size);
 	if (!ptr) {
-		perror("sh: allocation failed");
+		perror("toysh: allocation failed");
 		abort();
 	}
 	return ptr;
@@ -19,7 +19,7 @@ erealloc(void *ptr, int size)
 {
 	void *new = realloc(ptr, size);
 	if (!new) {
-		perror("sh: allocation failed");
+		perror("toysh: allocation failed");
 		abort();
 	}
 	return new;

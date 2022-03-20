@@ -123,7 +123,7 @@ parse_cmd(struct task *tsk, const struct token **tok)
 		*tok = (*tok)->next;
 	}
 	if (argbuf_is_empty(&args)) {
-		fputs("sh: no command\n", stderr);
+		fputs("toysh: no command\n", stderr);
 		argbuf_destroy(&args);
 		return 0;
 	}
@@ -174,11 +174,11 @@ parse_rd(struct task *tsk, const struct token **tok)
 		to_flags((*tok)->type, &flags, &which);
 		(*tok) = (*tok)->next;
 		if (!(*tok) || (*tok)->type != tok_word) {
-			fputs("sh: broken redirection: no filename\n", stderr);
+			fputs("toysh: broken redirection: no filename\n", stderr);
 			return 0;
 		}
 		if (task_is_redirected(tsk, which)) {
-			fputs("sh: broken redirection: already redirected\n", stderr);
+			fputs("toysh: broken redirection: already redirected\n", stderr);
 			return 0;
 		}
 		task_redirect(tsk, which, flags, (*tok)->word);
@@ -192,7 +192,7 @@ static int
 parse_term(struct task *tsk, const struct token **tok)
 {
 	if ((*tok) && (*tok)->type != tok_amp) {
-		fprintf(stderr, "sh: unexpected token: '%s'\n", (*tok)->word);
+		fprintf(stderr, "toysh: unexpected token: '%s'\n", (*tok)->word);
 		return 0;
 	}
 	if ((*tok) && (*tok)->type == tok_amp) {

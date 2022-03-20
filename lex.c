@@ -127,7 +127,7 @@ lex_sep(const char **lineptr, enum token_type *type)
 		NEXT(lineptr);
 	}
 	if (!to_tok(word.buf, type)) {
-		fprintf(stderr, "sh: syntax error near '%s'\n", word.buf);
+		fprintf(stderr, "toysh: syntax error near '%s'\n", word.buf);
 		charbuf_destroy(&word);
 		return NULL;
 	}
@@ -140,12 +140,12 @@ lex_word_quote(struct charbuf *word, const char **lineptr)
 	for (;;) {
 		switch (**lineptr) {
 		case 0:
-			fputs("sh: unclosed quote\n", stderr);
+			fputs("toysh: unclosed quote\n", stderr);
 			return 0;
 		case '\\':
 			NEXT(lineptr);
 			if (!**lineptr) {
-				fputs("sh: broken escape\n", stderr);
+				fputs("toysh: broken escape\n", stderr);
 				return 0;
 			}
 			charbuf_add(word, **lineptr);
@@ -171,7 +171,7 @@ lex_word(const char **lineptr)
 		case '\\':
 			NEXT(lineptr);
 			if (!**lineptr) {
-				fputs("sh: broken escape\n", stderr);
+				fputs("toysh: broken escape\n", stderr);
 				charbuf_destroy(&word);
 				return NULL;
 			}

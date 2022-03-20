@@ -66,7 +66,7 @@ redirect(char *file, int flags, int which)
 	if (file) {
 		new = open(file, flags, 0666);
 		if (new == -1)
-			perror("sh: open");
+			perror("toysh: open");
 		close(which);
 		dup2(new, which);
 	}
