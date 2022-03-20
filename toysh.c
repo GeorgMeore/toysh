@@ -3,7 +3,6 @@
 #include "lex.h"
 #include "parse.h"
 #include "sched.h"
-#include "debug.h"
 
 int
 main(void)
