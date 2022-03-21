@@ -5,6 +5,8 @@
 #include "lex.h"
 #include "parse.h"
 
+#define ARGBUFSZ 24
+
 static struct task *
 task_new(void)
 {
@@ -33,12 +35,12 @@ task_redirect(struct task *tsk, int which, int flags, const char *file)
 }
 
 static void
-argdelete(char **args)
+free_arr(char **arr)
 {
 	char **tmp;
-	for (tmp = args; *tmp; tmp++)
+	for (tmp = arr; *tmp; tmp++)
 		free(*tmp);
-	free(args);
+	free(arr);
 }
 
 static void
@@ -56,7 +58,7 @@ task_delete(struct task *tsk)
 	for (i = 0; i < 2; i++)
 		free(tsk->rd[i].file);
 	if (tsk->argv)
-		argdelete(tsk->argv);
+		free_arr(tsk->argv);
 	free(tsk);
 }
 
@@ -74,36 +76,29 @@ task_list_delete(struct task *head)
 struct argbuf {
 	char **argv;
 	int argc;
-	int cap;
 };
 
 static void
 argbuf_init(struct argbuf *buf)
 {
 	buf->argc = 0;
-	buf->argv = NULL;
-	buf->cap = 0;
+	buf->argv = emalloc(ARGBUFSZ*sizeof(*buf->argv));
+	buf->argv[0] = NULL;
 }
 
 static void
 argbuf_destroy(struct argbuf *buf)
 {
-	if (buf->argv)
-		argdelete(buf->argv);
+	free_arr(buf->argv);
 }
 
 static void
 argbuf_append(struct argbuf *buf, const char *arg)
 {
-	char **tmp;
-	if (buf->argc > buf->cap - 1) {
-		buf->cap += 24;
-		buf->argv = erealloc(buf->argv, buf->cap * sizeof(*buf->argv));
-	}
-	tmp = buf->argv + buf->argc;
-	tmp[0] = str_copy(arg);
-	tmp[1] = NULL;
-	buf->argc++;
+	if (buf->argc % ARGBUFSZ == ARGBUFSZ - 1)
+		buf->argv = erealloc(buf->argv, (buf->argc+1+ARGBUFSZ)*sizeof(*buf->argv));
+	buf->argv[buf->argc++] = str_copy(arg);
+	buf->argv[buf->argc] = NULL;
 }
 
 static int

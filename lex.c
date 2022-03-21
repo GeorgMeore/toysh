@@ -3,7 +3,7 @@
 #include "util.h"
 #include "lex.h"
 
-#define BUFCAP 256
+#define CHRBUFSZ 256
 
 /* word must be malloc-allocated string
  * ownership of word is transferred here */
@@ -52,7 +52,7 @@ struct charbuf {
 static void
 charbuf_init(struct charbuf *cbuf)
 {
-	cbuf->buf = emalloc(BUFCAP);
+	cbuf->buf = emalloc(CHRBUFSZ);
 	cbuf->buf[0] = 0;
 	cbuf->size = 0;
 }
@@ -66,8 +66,8 @@ charbuf_destroy(struct charbuf *cbuf)
 static void
 charbuf_add(struct charbuf *cbuf, char c)
 {
-	if (cbuf->size % BUFCAP == BUFCAP - 1)
-		cbuf->buf = erealloc(cbuf->buf, cbuf->size + 1 + BUFCAP);
+	if (cbuf->size % CHRBUFSZ == CHRBUFSZ - 1)
+		cbuf->buf = erealloc(cbuf->buf, cbuf->size + 1 + CHRBUFSZ);
 	cbuf->buf[cbuf->size++] = c;
 	cbuf->buf[cbuf->size] = 0;
 }
