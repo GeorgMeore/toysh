@@ -21,4 +21,4 @@ void task_list_delete(struct task *tsk);
 
 struct task *parse(const struct token *head);
 
-#endif /* PARSE_INCLUDED */
+#endif

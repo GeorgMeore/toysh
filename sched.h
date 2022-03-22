@@ -5,4 +5,4 @@
 
 void sched(const struct task *tsk);
 
-#endif /* EXEC_INCLUDED */
+#endif

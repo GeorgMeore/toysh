@@ -113,7 +113,7 @@ parse_cmd(struct task *tsk, const struct token **tok)
 {
 	struct argbuf args;
 	argbuf_init(&args);
-	while (*tok && (*tok)->type == tok_word) {
+	while ((*tok) && (*tok)->type == tok_word) {
 		argbuf_append(&args, (*tok)->word);
 		*tok = (*tok)->next;
 	}

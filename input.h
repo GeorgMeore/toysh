@@ -3,4 +3,4 @@
 
 int read_line(char **lineptr);
 
-#endif /* READ_INCLUDED */
+#endif

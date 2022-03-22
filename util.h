@@ -9,4 +9,4 @@ void *erealloc(void *ptr, int size);
 char *str_copy(const char *str);
 int str_equal(const char *s1, const char *s2);
 
-#endif /* UTIL_INLUDED */
+#endif
