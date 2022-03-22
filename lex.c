@@ -177,7 +177,7 @@ lex_var(const char **lineptr, char **valptr)
 static int
 lex_word_quote(struct charbuf *word, const char **lineptr)
 {
-	(*lineptr)++; /* skip starting " */
+	(*lineptr)++; /* skip the starting " */
 	for (;;) {
 		if (!**lineptr) {
 			fputs("toysh: unclosed quote\n", stderr);
@@ -191,7 +191,7 @@ lex_word_quote(struct charbuf *word, const char **lineptr)
 			charbuf_add(word, **lineptr);
 			(*lineptr)++;
 		} else if (**lineptr == '"') {
-			(*lineptr)++; /* skip closing " */
+			(*lineptr)++; /* skip the closing " */
 			return 1;
 		} else if (**lineptr == '[') {
 			char *value;
@@ -229,7 +229,7 @@ lex_word(const char **lineptr)
 			if (!lex_var(lineptr, &value))
 				goto fail;
 			for (; value && *value; value++)
-				/* outsize of quotes variable value is split on whitespaces */
+				/* outside of quotes variable value is split on whitespaces */
 				if (is_ws(*value) && word.size)
 					token_list_append(&tokens, token_new(tok_word, word.buf));
 				else
