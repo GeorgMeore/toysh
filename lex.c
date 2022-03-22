@@ -98,6 +98,20 @@ is_sep(char c)
 	}
 }
 
+static int
+is_name(char c)
+{
+	if (c > 'a' && c < 'z')
+		return 1;
+	if (c > 'A' && c < 'Z')
+		return 1;
+	if (c > '0' && c < '9')
+		return 1;
+	if (c == '_')
+		return 1;
+	return 0;
+}
+
 /* try to convert a string to a token */
 static int
 to_tok(const char *str, enum token_type *type)
@@ -117,32 +131,57 @@ to_tok(const char *str, enum token_type *type)
 
 #define NEXT(x) ((*(x))++)
 
-static char *
-lex_sep(const char **lineptr, enum token_type *type)
+struct token *
+lex_sep(const char **lineptr)
 {
 	struct charbuf word;
+	enum token_type type;
 	charbuf_init(&word);
 	while (**lineptr && is_sep(**lineptr)) {
 		charbuf_add(&word, **lineptr);
 		NEXT(lineptr);
 	}
-	if (!to_tok(word.buf, type)) {
+	if (!to_tok(word.buf, &type)) {
 		fprintf(stderr, "toysh: syntax error near '%s'\n", word.buf);
 		charbuf_destroy(&word);
 		return NULL;
 	}
-	return word.buf;
+	return token_new(type, word.buf);
+}
+
+static int
+lex_var(const char **lineptr, char **valptr)
+{
+	struct charbuf varname;
+	NEXT(lineptr); /* skip [ */
+	charbuf_init(&varname);
+	for (;;) {
+		if (**lineptr == ']') {
+			*valptr = getenv(varname.buf);
+			NEXT(lineptr); /* skip ] */
+			charbuf_destroy(&varname);
+			return 1;
+		}
+		if (!is_name(**lineptr)) {
+			fputs("toysh: broken variable expansion\n", stderr);
+			charbuf_destroy(&varname);
+			return 0;
+		} else {
+			charbuf_add(&varname, **lineptr);
+			NEXT(lineptr);
+		}
+	}
 }
 
 static int
 lex_word_quote(struct charbuf *word, const char **lineptr)
 {
+	NEXT(lineptr); /* skip starting " */
 	for (;;) {
-		switch (**lineptr) {
-		case 0:
+		if (!**lineptr) {
 			fputs("toysh: unclosed quote\n", stderr);
 			return 0;
-		case '\\':
+		} else if (**lineptr == '\\') {
 			NEXT(lineptr);
 			if (!**lineptr) {
 				fputs("toysh: broken escape\n", stderr);
@@ -150,48 +189,60 @@ lex_word_quote(struct charbuf *word, const char **lineptr)
 			}
 			charbuf_add(word, **lineptr);
 			NEXT(lineptr);
-			break;
-		case '"':
-			NEXT(lineptr);
+		} else if (**lineptr == '"') {
+			NEXT(lineptr); /* skip closing " */
 			return 1;
-		default:
+		} else if (**lineptr == '[') {
+			char *value;
+			if (!lex_var(lineptr, &value))
+				return 0;
+			for (; value && *value; value++)
+				charbuf_add(word, *value);
+		} else {
 			charbuf_add(word, **lineptr);
 			NEXT(lineptr);
 		}
 	}
 }
 
-static char *
+static struct token *
 lex_word(const char **lineptr)
 {
+	struct token *tokens = NULL;
 	struct charbuf word;
 	charbuf_init(&word);
 	for (;;) {
-		switch (**lineptr) {
-		case '\\':
+		if (**lineptr == '\\') {
 			NEXT(lineptr);
 			if (!**lineptr) {
 				fputs("toysh: broken escape\n", stderr);
-				charbuf_destroy(&word);
-				return NULL;
+				goto fail;
 			}
 			charbuf_add(&word, **lineptr);
 			NEXT(lineptr);
-			break;
-		case '"':
-			NEXT(lineptr);
-			if (!lex_word_quote(&word, lineptr)) {
-				charbuf_destroy(&word);
-				return NULL;
-			}
-			break;
-		default:
-			if (is_ws(**lineptr) || is_sep(**lineptr) || !**lineptr)
-				return word.buf;
+		} else if (**lineptr == '"') {
+			if (!lex_word_quote(&word, lineptr))
+				goto fail;
+		} else if (**lineptr == '[') {
+			char *value;
+			if (!lex_var(lineptr, &value))
+				goto fail;
+			for (; value && *value; value++)
+				if (is_ws(*value) && word.size)
+					token_list_append(&tokens, token_new(tok_word, word.buf));
+				else
+					charbuf_add(&word, *value);
+		} else if (is_ws(**lineptr) || is_sep(**lineptr) || !**lineptr) {
+			token_list_append(&tokens, token_new(tok_word, word.buf));
+			return tokens;
+		} else {
 			charbuf_add(&word, **lineptr);
 			NEXT(lineptr);
 		}
 	}
+fail:
+	charbuf_destroy(&word);
+	return NULL;
 }
 
 struct token *
@@ -199,25 +250,20 @@ lex(const char *line)
 {
 	struct token *tokens = NULL;
 	for (;;) {
-		enum token_type type;
-		char *word;
-		struct token *current;
+		struct token *new_tokens;
 		/* skip whitespace characters */
 		while (*line && is_ws(*line))
 			line++;
 		if (*line == 0)
 			return tokens;
 		if (is_sep(*line))
-			word = lex_sep(&line, &type);
-		else {
-			type = tok_word;
-			word = lex_word(&line);
-		}
-		if (!word) {
+			new_tokens = lex_sep(&line);
+		else
+			new_tokens = lex_word(&line);
+		if (!new_tokens) {
 			token_list_delete(tokens);
 			return NULL;
 		}
-		current = token_new(type, word);
-		token_list_append(&tokens, current);
+		token_list_append(&tokens, new_tokens);
 	}
 }
