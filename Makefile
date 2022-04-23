@@ -12,7 +12,7 @@ ifneq (clean, $(MAKECMDGOALS))
 endif
 
 deps.mk: $(SRC)
-	$(CC) -MM $^ > $@
+	$(CC) -MM $^ >$@
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c $<
