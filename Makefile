@@ -1,7 +1,7 @@
 CC = gcc
 CFLAGS = -ansi -Wall -Wextra -g
 
-SRC = util.c input.c lex.c parse.c sched.c toysh.c
+SRC = util.c input.c lex.c parse.c sched.c toysh.c builtins.c
 OBJ = $(SRC:.c=.o)
 
 toysh: $(OBJ)
@@ -17,7 +17,6 @@ deps.mk: $(SRC)
 %.o: %.c
 	$(CC) $(CFLAGS) -c $<
 
+.PHONY: clean
 clean:
 	rm -rf toysh $(OBJ) deps.mk
-
-.PHONY: clean
