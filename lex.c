@@ -76,43 +76,14 @@ charbuf_add(struct charbuf *cbuf, char c)
 static int
 is_ws(char c)
 {
-	switch (c) {
-	case '\n':
-	case '\t':
-	case ' ':
-		return 1;
-	default:
-		return 0;
-	}
+	return c == '\n' || c == '\t' || c == ' ';
 }
 
 /* check if the charater can be a part of a separator */
 static int
 is_sep_char(char c)
 {
-	switch (c) {
-	case '>':
-	case '&':
-	case '<':
-		return 1;
-	default:
-		return 0;
-	}
-}
-
-/* check if the charater can be a part of a variable name */
-static int
-is_name_char(char c)
-{
-	if (c >= 'a' && c <= 'z')
-		return 1;
-	if (c >= 'A' && c <= 'Z')
-		return 1;
-	if (c >= '0' && c <= '9')
-		return 1;
-	if (c == '_')
-		return 1;
-	return 0;
+	return c == '>' || c == '&' || c == '<';
 }
 
 /* try to convert a string to a token */
@@ -151,30 +122,6 @@ lex_sep(const char **lineptr)
 }
 
 static int
-lex_var(const char **lineptr, char **valptr)
-{
-	struct charbuf varname;
-	(*lineptr)++; /* skip [ */
-	charbuf_init(&varname);
-	for (;;) {
-		if (**lineptr == ']') {
-			*valptr = getenv(varname.buf);
-			(*lineptr)++; /* skip ] */
-			charbuf_destroy(&varname);
-			return 1;
-		}
-		if (!is_name_char(**lineptr)) {
-			fputs("toysh: broken variable expansion\n", stderr);
-			charbuf_destroy(&varname);
-			return 0;
-		} else {
-			charbuf_add(&varname, **lineptr);
-			(*lineptr)++;
-		}
-	}
-}
-
-static int
 lex_word_quote(struct charbuf *word, const char **lineptr)
 {
 	(*lineptr)++; /* skip the starting " */
@@ -193,12 +140,6 @@ lex_word_quote(struct charbuf *word, const char **lineptr)
 		} else if (**lineptr == '"') {
 			(*lineptr)++; /* skip the closing " */
 			return 1;
-		} else if (**lineptr == '[') {
-			char *value;
-			if (!lex_var(lineptr, &value))
-				return 0;
-			for (; value && *value; value++)
-				charbuf_add(word, *value);
 		} else {
 			charbuf_add(word, **lineptr);
 			(*lineptr)++;
@@ -224,16 +165,6 @@ lex_word(const char **lineptr)
 		} else if (**lineptr == '"') {
 			if (!lex_word_quote(&word, lineptr))
 				goto fail;
-		} else if (**lineptr == '[') {
-			char *value;
-			if (!lex_var(lineptr, &value))
-				goto fail;
-			for (; value && *value; value++)
-				/* outside of quotes variable value is split on whitespaces */
-				if (is_ws(*value) && word.size)
-					token_list_append(&tokens, token_new(tok_word, word.buf));
-				else
-					charbuf_add(&word, *value);
 		} else if (is_ws(**lineptr) || is_sep_char(**lineptr) || !**lineptr) {
 			token_list_append(&tokens, token_new(tok_word, word.buf));
 			return tokens;
