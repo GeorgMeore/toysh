@@ -5,6 +5,10 @@
 
 #define CHRBUFSZ 256
 
+#define PEEK(lineptr) (**lineptr)
+#define NEXT(lineptr) (*(*lineptr)++)
+#define SKIP(lineptr) ((void)((*lineptr)++))
+
 /* word must be malloc-allocated string
  * ownership of word is transferred here */
 static struct token *
@@ -50,26 +54,27 @@ struct charbuf {
 };
 
 static void
-charbuf_init(struct charbuf *cbuf)
+charbuf_init(struct charbuf *self)
 {
-	cbuf->buf = emalloc(CHRBUFSZ);
-	cbuf->buf[0] = 0;
-	cbuf->size = 0;
+	self->buf = emalloc(CHRBUFSZ);
+	self->buf[0] = 0;
+	self->size = 0;
 }
 
 static void
-charbuf_destroy(struct charbuf *cbuf)
+charbuf_destroy(struct charbuf *self)
 {
-	free(cbuf->buf);
+	free(self->buf);
 }
 
 static void
-charbuf_add(struct charbuf *cbuf, char c)
+charbuf_add(struct charbuf *self, char c)
 {
-	if (cbuf->size % CHRBUFSZ == CHRBUFSZ - 1)
-		cbuf->buf = erealloc(cbuf->buf, cbuf->size + 1 + CHRBUFSZ);
-	cbuf->buf[cbuf->size++] = c;
-	cbuf->buf[cbuf->size] = 0;
+	if (self->size % CHRBUFSZ == CHRBUFSZ - 1) {
+		self->buf = erealloc(self->buf, self->size + 1 + CHRBUFSZ);
+	}
+	self->buf[self->size++] = c;
+	self->buf[self->size] = 0;
 }
 
 /* check if the charater is a whitespace */
@@ -109,9 +114,8 @@ lex_sep(const char **lineptr)
 	struct charbuf word;
 	enum token_type type;
 	charbuf_init(&word);
-	while (**lineptr && is_sep_char(**lineptr)) {
-		charbuf_add(&word, **lineptr);
-		(*lineptr)++;
+	while (is_sep_char(PEEK(lineptr))) {
+		charbuf_add(&word, NEXT(lineptr));
 	}
 	type = to_tok(word.buf);
 	if (type == tok_err) {
@@ -125,25 +129,23 @@ lex_sep(const char **lineptr)
 static int
 lex_word_quote(struct charbuf *word, const char **lineptr)
 {
-	(*lineptr)++; /* skip the starting " */
+	SKIP(lineptr); /* skip the starting " */
 	for (;;) {
-		if (!**lineptr) {
+		if (!PEEK(lineptr)) {
 			fputs("toysh: unclosed quote\n", stderr);
 			return 0;
-		} else if (**lineptr == '\\') {
-			(*lineptr)++;
-			if (!**lineptr) {
+		} else if (PEEK(lineptr) == '\\') {
+			SKIP(lineptr);
+			if (!PEEK(lineptr)) {
 				fputs("toysh: broken escape\n", stderr);
 				return 0;
 			}
-			charbuf_add(word, **lineptr);
-			(*lineptr)++;
-		} else if (**lineptr == '"') {
-			(*lineptr)++; /* skip the closing " */
+			charbuf_add(word, NEXT(lineptr));
+		} else if (PEEK(lineptr) == '"') {
+			SKIP(lineptr); /* skip the closing " */
 			return 1;
 		} else {
-			charbuf_add(word, **lineptr);
-			(*lineptr)++;
+			charbuf_add(word, NEXT(lineptr));
 		}
 	}
 }
@@ -155,24 +157,22 @@ lex_word(const char **lineptr)
 	struct charbuf word;
 	charbuf_init(&word);
 	for (;;) {
-		if (**lineptr == '\\') {
-			(*lineptr)++;
-			if (!**lineptr) {
+		if (PEEK(lineptr) == '\\') {
+			SKIP(lineptr);
+			if (!PEEK(lineptr)) {
 				fputs("toysh: broken escape\n", stderr);
 				goto fail;
 			}
-			charbuf_add(&word, **lineptr);
-			(*lineptr)++;
-		} else if (**lineptr == '"') {
+			charbuf_add(&word, NEXT(lineptr));
+		} else if (PEEK(lineptr) == '"') {
 			if (!lex_word_quote(&word, lineptr)) {
 				goto fail;
 			}
-		} else if (is_ws(**lineptr) || is_sep_char(**lineptr) || !**lineptr) {
+		} else if (is_ws(PEEK(lineptr)) || is_sep_char(PEEK(lineptr)) || !PEEK(lineptr)) {
 			token_list_append(&tokens, token_new(tok_word, word.buf));
 			return tokens;
 		} else {
-			charbuf_add(&word, **lineptr);
-			(*lineptr)++;
+			charbuf_add(&word, NEXT(lineptr));
 		}
 	}
 fail:
@@ -184,19 +184,20 @@ struct token *
 lex(const char *line)
 {
 	struct token *tokens = NULL;
+	const char **lineptr = &line;
 	for (;;) {
 		struct token *new_tokens;
 		/* skip whitespace characters */
-		while (*line && is_ws(*line)) {
-			line++;
+		while (is_ws(PEEK(lineptr))) {
+			SKIP(lineptr);
 		}
-		if (*line == 0) {
+		if (!PEEK(lineptr)) {
 			return tokens;
 		}
-		if (is_sep_char(*line)) {
-			new_tokens = lex_sep(&line);
+		if (is_sep_char(PEEK(lineptr))) {
+			new_tokens = lex_sep(lineptr);
 		} else {
-			new_tokens = lex_word(&line);
+			new_tokens = lex_word(lineptr);
 		}
 		if (!new_tokens) {
 			token_list_delete(tokens);
