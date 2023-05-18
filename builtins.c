@@ -8,14 +8,16 @@
 
 BUILTIN_DECLARE(cd)
 {
-	if (argc == 1)
+	if (argc == 1) {
 		return chdir(getenv("HOME"));
-	else
+	} else {
 		return chdir(argv[1]);
+	}
 }
 
 BUILTIN_DECLARE(bfork)
 {
+	(void)argc, (void)argv;
 	int pid = fork();
 	if (pid == -1) {
 		perror("error: fork");
