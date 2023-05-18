@@ -9,6 +9,7 @@ struct token {
 		tok_gt,   /* > redirect stdout */
 		tok_lt,   /* < redirect stdin */
 		tok_ggt,  /* >> redirect stdout (append) */
+		tok_err,  /* lexical error */
 	} type;
 	char *word;
 	struct token *next;

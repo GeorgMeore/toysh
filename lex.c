@@ -87,20 +87,20 @@ is_sep_char(char c)
 }
 
 /* try to convert a string to a token */
-static int
-to_tok(const char *str, enum token_type *type)
+enum token_type
+to_tok(const char *str)
 {
-	if (str_equal(str, "&"))
-		*type = tok_amp;
-	else if (str_equal(str, "<"))
-		*type = tok_lt;
-	else if (str_equal(str, ">"))
-		*type = tok_gt;
-	else if (str_equal(str, ">>"))
-		*type = tok_ggt;
-	else
-		return 0;
-	return 1;
+	if (str_equal(str, "&")) {
+		return tok_amp;
+	} else if (str_equal(str, "<")) {
+		return tok_lt;
+	} else if (str_equal(str, ">")) {
+		return tok_gt;
+	} else if (str_equal(str, ">>")) {
+		return tok_ggt;
+	} else {
+		return tok_err;
+	}
 }
 
 static struct token *
@@ -113,7 +113,8 @@ lex_sep(const char **lineptr)
 		charbuf_add(&word, **lineptr);
 		(*lineptr)++;
 	}
-	if (!to_tok(word.buf, &type)) {
+	type = to_tok(word.buf);
+	if (type == tok_err) {
 		fprintf(stderr, "toysh: syntax error near '%s'\n", word.buf);
 		charbuf_destroy(&word);
 		return NULL;
@@ -163,8 +164,9 @@ lex_word(const char **lineptr)
 			charbuf_add(&word, **lineptr);
 			(*lineptr)++;
 		} else if (**lineptr == '"') {
-			if (!lex_word_quote(&word, lineptr))
+			if (!lex_word_quote(&word, lineptr)) {
 				goto fail;
+			}
 		} else if (is_ws(**lineptr) || is_sep_char(**lineptr) || !**lineptr) {
 			token_list_append(&tokens, token_new(tok_word, word.buf));
 			return tokens;
@@ -185,14 +187,17 @@ lex(const char *line)
 	for (;;) {
 		struct token *new_tokens;
 		/* skip whitespace characters */
-		while (*line && is_ws(*line))
+		while (*line && is_ws(*line)) {
 			line++;
-		if (*line == 0)
+		}
+		if (*line == 0) {
 			return tokens;
-		if (is_sep_char(*line))
+		}
+		if (is_sep_char(*line)) {
 			new_tokens = lex_sep(&line);
-		else
+		} else {
 			new_tokens = lex_word(&line);
+		}
 		if (!new_tokens) {
 			token_list_delete(tokens);
 			return NULL;
