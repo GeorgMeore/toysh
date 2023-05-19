@@ -192,6 +192,7 @@ lex(const char *line)
 			SKIP(iter);
 		}
 		if (!PEEK(iter)) {
+			token_list_append(&tokens, token_new(tok_eol, NULL));
 			return tokens;
 		}
 		if (is_sep_char(PEEK(iter))) {

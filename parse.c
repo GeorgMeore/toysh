@@ -7,6 +7,9 @@
 
 #define ARGBUFSZ 24
 
+#define PEEK(scanner) (*scanner)
+#define SKIP(scanner) ((*scanner) = (*scanner)->next)
+
 static struct task *
 task_new(void)
 {
@@ -114,13 +117,13 @@ argbuf_is_empty(const struct argbuf *buf)
 
 /* parse command and arguments */
 static int
-parse_cmd(struct task *tsk, const struct token **tok)
+parse_cmd(struct task *tsk, const struct token **scanner)
 {
 	struct argbuf args;
 	argbuf_init(&args);
-	while ((*tok) && (*tok)->type == tok_word) {
-		argbuf_append(&args, (*tok)->word);
-		*tok = (*tok)->next;
+	while (PEEK(scanner)->type == tok_word) {
+		argbuf_append(&args, PEEK(scanner)->word);
+		SKIP(scanner);
 	}
 	if (argbuf_is_empty(&args)) {
 		fputs("toysh: no command\n", stderr);
@@ -169,13 +172,13 @@ redirection_flags(enum token_type rd_type)
 
 /* parse output rediretions */
 static int
-parse_redirections(struct task *tsk, const struct token **tok)
+parse_redirections(struct task *tsk, const struct token **scanner)
 {
-	while ((*tok) && is_redirection((*tok)->type)) {
-		int flags = redirection_flags((*tok)->type);
-		int which = redirection_fd((*tok)->type);
-		(*tok) = (*tok)->next;
-		if (!(*tok) || (*tok)->type != tok_word) {
+	while (is_redirection(PEEK(scanner)->type)) {
+		int flags = redirection_flags(PEEK(scanner)->type);
+		int which = redirection_fd(PEEK(scanner)->type);
+		SKIP(scanner);
+		if (PEEK(scanner)->type != tok_word) {
 			fputs("toysh: broken redirection: no filename\n", stderr);
 			return 0;
 		}
@@ -183,40 +186,44 @@ parse_redirections(struct task *tsk, const struct token **tok)
 			fputs("toysh: broken redirection: already redirected\n", stderr);
 			return 0;
 		}
-		task_redirect(tsk, which, flags, (*tok)->word);
-		(*tok) = (*tok)->next;
+		task_redirect(tsk, which, flags, PEEK(scanner)->word);
+		SKIP(scanner);
 	}
 	return 1;
 }
 
 /* parse terminator tokens (there is only '&' for now) */
 static int
-parse_term(struct task *tsk, const struct token **tok)
+parse_terminator(struct task *tsk, const struct token **scanner)
 {
-	if ((*tok) && (*tok)->type != tok_amp) {
-		fprintf(stderr, "toysh: unexpected token: '%s'\n", (*tok)->word);
+	if (PEEK(scanner)->type != tok_eol && PEEK(scanner)->type != tok_amp) {
+		fprintf(stderr, "toysh: unexpected token: '%s'\n", PEEK(scanner)->word);
 		return 0;
 	}
-	if ((*tok) && (*tok)->type == tok_amp) {
+	if (PEEK(scanner)->type == tok_amp) {
 		tsk->type = task_bg;
-		(*tok) = (*tok)->next;
+		SKIP(scanner);
 	}
 	return 1;
 }
 
 struct task *
-parse(const struct token *tok)
+parse(const struct token *toks)
 {
 	struct task *tasks = NULL, *current;
-	while (tok) {
+	const struct token **scanner = &toks;
+	if (!PEEK(scanner)) {
+		return NULL;
+	}
+	while (PEEK(scanner)->type != tok_eol) {
 		current = task_new();
-		if (!parse_cmd(current, &tok)) {
+		if (!parse_cmd(current, scanner)) {
 			goto fail;
 		}
-		if (!parse_redirections(current, &tok)) {
+		if (!parse_redirections(current, scanner)) {
 			goto fail;
 		}
-		if (!parse_term(current, &tok)) {
+		if (!parse_terminator(current, scanner)) {
 			goto fail;
 		}
 		task_list_append(&tasks, current);
