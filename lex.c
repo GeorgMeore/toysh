@@ -5,9 +5,9 @@
 
 #define CHRBUFSZ 256
 
-#define PEEK(lineptr) (**lineptr)
-#define NEXT(lineptr) (*(*lineptr)++)
-#define SKIP(lineptr) ((void)((*lineptr)++))
+#define PEEK(iter) (**iter)
+#define NEXT(iter) (*(*iter)++)
+#define SKIP(iter) ((void)((*iter)++))
 
 /* word must be malloc-allocated string
  * ownership of word is transferred here */
@@ -109,13 +109,13 @@ to_tok(const char *str)
 }
 
 static struct token *
-lex_sep(const char **lineptr)
+lex_sep(const char **iter)
 {
 	struct charbuf word;
 	enum token_type type;
 	charbuf_init(&word);
-	while (is_sep_char(PEEK(lineptr))) {
-		charbuf_add(&word, NEXT(lineptr));
+	while (is_sep_char(PEEK(iter))) {
+		charbuf_add(&word, NEXT(iter));
 	}
 	type = to_tok(word.buf);
 	if (type == tok_err) {
@@ -127,52 +127,52 @@ lex_sep(const char **lineptr)
 }
 
 static int
-lex_word_quote(struct charbuf *word, const char **lineptr)
+lex_word_quote(struct charbuf *word, const char **iter)
 {
-	SKIP(lineptr); /* skip the starting " */
+	SKIP(iter); /* skip the starting " */
 	for (;;) {
-		if (!PEEK(lineptr)) {
+		if (!PEEK(iter)) {
 			fputs("toysh: unclosed quote\n", stderr);
 			return 0;
-		} else if (PEEK(lineptr) == '\\') {
-			SKIP(lineptr);
-			if (!PEEK(lineptr)) {
+		} else if (PEEK(iter) == '\\') {
+			SKIP(iter);
+			if (!PEEK(iter)) {
 				fputs("toysh: broken escape\n", stderr);
 				return 0;
 			}
-			charbuf_add(word, NEXT(lineptr));
-		} else if (PEEK(lineptr) == '"') {
-			SKIP(lineptr); /* skip the closing " */
+			charbuf_add(word, NEXT(iter));
+		} else if (PEEK(iter) == '"') {
+			SKIP(iter); /* skip the closing " */
 			return 1;
 		} else {
-			charbuf_add(word, NEXT(lineptr));
+			charbuf_add(word, NEXT(iter));
 		}
 	}
 }
 
 static struct token *
-lex_word(const char **lineptr)
+lex_word(const char **iter)
 {
 	struct token *tokens = NULL;
 	struct charbuf word;
 	charbuf_init(&word);
 	for (;;) {
-		if (PEEK(lineptr) == '\\') {
-			SKIP(lineptr);
-			if (!PEEK(lineptr)) {
+		if (PEEK(iter) == '\\') {
+			SKIP(iter);
+			if (!PEEK(iter)) {
 				fputs("toysh: broken escape\n", stderr);
 				goto fail;
 			}
-			charbuf_add(&word, NEXT(lineptr));
-		} else if (PEEK(lineptr) == '"') {
-			if (!lex_word_quote(&word, lineptr)) {
+			charbuf_add(&word, NEXT(iter));
+		} else if (PEEK(iter) == '"') {
+			if (!lex_word_quote(&word, iter)) {
 				goto fail;
 			}
-		} else if (is_ws(PEEK(lineptr)) || is_sep_char(PEEK(lineptr)) || !PEEK(lineptr)) {
+		} else if (is_ws(PEEK(iter)) || is_sep_char(PEEK(iter)) || !PEEK(iter)) {
 			token_list_append(&tokens, token_new(tok_word, word.buf));
 			return tokens;
 		} else {
-			charbuf_add(&word, NEXT(lineptr));
+			charbuf_add(&word, NEXT(iter));
 		}
 	}
 fail:
@@ -184,20 +184,20 @@ struct token *
 lex(const char *line)
 {
 	struct token *tokens = NULL;
-	const char **lineptr = &line;
+	const char **iter = &line;
 	for (;;) {
 		struct token *new_tokens;
 		/* skip whitespace characters */
-		while (is_ws(PEEK(lineptr))) {
-			SKIP(lineptr);
+		while (is_ws(PEEK(iter))) {
+			SKIP(iter);
 		}
-		if (!PEEK(lineptr)) {
+		if (!PEEK(iter)) {
 			return tokens;
 		}
-		if (is_sep_char(PEEK(lineptr))) {
-			new_tokens = lex_sep(lineptr);
+		if (is_sep_char(PEEK(iter))) {
+			new_tokens = lex_sep(iter);
 		} else {
-			new_tokens = lex_word(lineptr);
+			new_tokens = lex_word(iter);
 		}
 		if (!new_tokens) {
 			token_list_delete(tokens);
