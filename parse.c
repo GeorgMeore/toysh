@@ -38,16 +38,18 @@ static void
 free_arr(char **arr)
 {
 	char **tmp;
-	for (tmp = arr; *tmp; tmp++)
+	for (tmp = arr; *tmp; tmp++) {
 		free(*tmp);
+	}
 	free(arr);
 }
 
 static void
 task_list_append(struct task **list, struct task *new)
 {
-	while (*list != NULL)
+	while (*list != NULL) {
 		list = &(*list)->next;
+	}
 	*list = new;
 }
 
@@ -55,10 +57,12 @@ static void
 task_delete(struct task *tsk)
 {
 	int i;
-	for (i = 0; i < 2; i++)
+	for (i = 0; i < 2; i++) {
 		free(tsk->rd[i].file);
-	if (tsk->argv)
+	}
+	if (tsk->argv) {
 		free_arr(tsk->argv);
+	}
 	free(tsk);
 }
 
@@ -95,8 +99,9 @@ argbuf_destroy(struct argbuf *buf)
 static void
 argbuf_append(struct argbuf *buf, const char *arg)
 {
-	if (buf->argc % ARGBUFSZ == ARGBUFSZ - 1)
+	if (buf->argc % ARGBUFSZ == ARGBUFSZ - 1) {
 		buf->argv = erealloc(buf->argv, (buf->argc+1+ARGBUFSZ)*sizeof(*buf->argv));
+	}
 	buf->argv[buf->argc++] = str_copy(arg);
 	buf->argv[buf->argc] = NULL;
 }
@@ -131,42 +136,44 @@ static int
 is_redirection(enum token_type type)
 {
 	switch (type) {
-	case tok_gt:
-	case tok_ggt:
-	case tok_lt:
+	case tok_gt: case tok_ggt: case tok_lt:
 		return 1;
 	default:
 		return 0;
 	}
 }
 
-static void
-to_flags(enum token_type rd_type, int *flags, int *which)
+static int
+redirection_fd(enum token_type rd_type)
+{
+	switch (rd_type) {
+	case tok_gt: case tok_ggt:
+		return 1;
+	default:
+		return 0;
+	}
+}
+
+static int
+redirection_flags(enum token_type rd_type)
 {
 	switch (rd_type) {
 	case tok_gt:
-		*flags = O_WRONLY|O_CREAT;
-		*which = 1;
-		return;
+		return O_WRONLY|O_CREAT;
 	case tok_ggt:
-		*flags = O_WRONLY|O_CREAT|O_APPEND;
-		*which = 1;
-		return;
-	case tok_lt:
-		*flags = O_RDONLY;
-		*which = 0;
-		return;
-	default: /* this should never happen */
+		return O_WRONLY|O_CREAT|O_APPEND;
+	default:
+		return O_RDONLY;
 	}
 }
 
 /* parse output rediretions */
 static int
-parse_rd(struct task *tsk, const struct token **tok)
+parse_redirections(struct task *tsk, const struct token **tok)
 {
 	while ((*tok) && is_redirection((*tok)->type)) {
-		int flags, which;
-		to_flags((*tok)->type, &flags, &which);
+		int flags = redirection_flags((*tok)->type);
+		int which = redirection_fd((*tok)->type);
 		(*tok) = (*tok)->next;
 		if (!(*tok) || (*tok)->type != tok_word) {
 			fputs("toysh: broken redirection: no filename\n", stderr);
@@ -203,12 +210,15 @@ parse(const struct token *tok)
 	struct task *tasks = NULL, *current;
 	while (tok) {
 		current = task_new();
-		if (!parse_cmd(current, &tok))
+		if (!parse_cmd(current, &tok)) {
 			goto fail;
-		if (!parse_rd(current, &tok))
+		}
+		if (!parse_redirections(current, &tok)) {
 			goto fail;
-		if (!parse_term(current, &tok))
+		}
+		if (!parse_term(current, &tok)) {
 			goto fail;
+		}
 		task_list_append(&tasks, current);
 	}
 	return tasks;
