@@ -3,17 +3,21 @@
 
 #include "lex.h"
 
+struct redirection {
+	char *file;
+	int flags;
+};
+
+enum task_type {
+	task_fg,
+	task_bg,
+};
+
 struct task {
 	int argc;
 	char **argv;
-	enum exec_type {
-		task_fg,
-		task_bg,
-	} type;
-	struct task_rd {
-		char *file;
-		int flags;
-	} rd[2];
+	enum task_type type;
+	struct redirection rd[2];
 	struct task *next;
 };
 
