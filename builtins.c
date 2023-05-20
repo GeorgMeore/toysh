@@ -4,9 +4,7 @@
 #include "builtins.h"
 #include "util.h"
 
-#define BUILTIN_DECLARE(NAME) static int NAME(int argc, char **argv)
-
-BUILTIN_DECLARE(cd)
+static int cd(int argc, char **argv)
 {
 	if (argc == 1) {
 		return chdir(getenv("HOME"));
@@ -15,9 +13,8 @@ BUILTIN_DECLARE(cd)
 	}
 }
 
-BUILTIN_DECLARE(bfork)
+static int bfork()
 {
-	(void)argc, (void)argv;
 	int pid = fork();
 	if (pid == -1) {
 		perror("error: fork");
