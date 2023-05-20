@@ -161,12 +161,14 @@ lex_word(const char **iter)
 			SKIP(iter);
 			if (!PEEK(iter)) {
 				fputs("toysh: broken escape\n", stderr);
-				goto fail;
+				charbuf_destroy(&word);
+				return NULL;
 			}
 			charbuf_add(&word, NEXT(iter));
 		} else if (PEEK(iter) == '"') {
 			if (!lex_word_quote(&word, iter)) {
-				goto fail;
+				charbuf_destroy(&word);
+				return NULL;
 			}
 		} else if (is_ws(PEEK(iter)) || is_sep_char(PEEK(iter)) || !PEEK(iter)) {
 			token_list_append(&tokens, token_new(tok_word, word.buf));
@@ -175,9 +177,6 @@ lex_word(const char **iter)
 			charbuf_add(&word, NEXT(iter));
 		}
 	}
-fail:
-	charbuf_destroy(&word);
-	return NULL;
 }
 
 struct token *
