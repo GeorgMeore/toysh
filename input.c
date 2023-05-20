@@ -7,26 +7,26 @@
 int
 read_line(char **lineptr)
 {
-	int read = 0;
-	int size = 0;
+	int read = 0, size = 0;
 	int tty = isatty(1);
-	int c;
-	if (tty)
+	if (tty) {
 		fputs("> ", stderr);
+	}
 	for (*lineptr = NULL; ;read++) {
+		int c = getchar();
 		if (read >= size - 1) {
 			size += 256;
 			*lineptr = erealloc(*lineptr, size);
 		}
-		c = getchar();
 		switch (c) {
 		case EOF:
 			if (read == 0) {
 				free(*lineptr);
 				return 0;
 			}
-			if (tty)
+			if (tty) {
 				clearerr(stdin);
+			}
 			/* fall through */
 		case '\n':
 			(*lineptr)[read] = 0;
