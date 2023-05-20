@@ -10,7 +10,7 @@ struct redirection {
 
 enum task_type {
 	task_fg,
-	task_bg,
+	task_bg
 };
 
 struct task {

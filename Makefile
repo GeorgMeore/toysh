@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -ansi -Wall -Wextra -g
+CFLAGS = -ansi -pedantic -Wall -Wextra -g
 
 SRC = util.c input.c lex.c parse.c sched.c toysh.c builtins.c
 OBJ = $(SRC:.c=.o)
