@@ -69,10 +69,17 @@ redirect(char *file, int flags, int which)
 }
 
 void
+collect_zombies()
+{
+	int pid;
+	while ((pid = waitpid(-1, NULL, WNOHANG)) > 0) {
+		fprintf(stderr, "toysh: process finished: %d\n", pid);
+	}
+}
+
+void
 sched(const struct task *tsk)
 {
-	while (waitpid(-1, NULL, WNOHANG) > 0)
-		{} /* collect zombies */
 	while (tsk) {
 		int i, oldfd[2];
 		for (i = 0; i < 2; i++) {
@@ -88,4 +95,5 @@ sched(const struct task *tsk)
 		}
 		tsk = tsk->next;
 	}
+	collect_zombies();
 }
