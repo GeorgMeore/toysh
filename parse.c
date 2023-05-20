@@ -117,7 +117,7 @@ argbuf_is_empty(const struct argbuf *buf)
 
 /* parse command and arguments */
 static int
-parse_cmd(struct task *tsk, const struct token **scanner)
+parse_arguments(struct task *tsk, const struct token **scanner)
 {
 	struct argbuf args;
 	argbuf_init(&args);
@@ -217,20 +217,17 @@ parse(const struct token *toks)
 	}
 	while (PEEK(scanner)->type != tok_eol) {
 		current = task_new();
-		if (!parse_cmd(current, scanner)) {
-			goto fail;
+		if (
+			parse_arguments(current, scanner) &&
+			parse_redirections(current, scanner) &&
+			parse_terminator(current, scanner)
+		) {
+			task_list_append(&tasks, current);
+		} else {
+			task_list_delete(tasks);
+			task_delete(current);
+			return NULL;
 		}
-		if (!parse_redirections(current, scanner)) {
-			goto fail;
-		}
-		if (!parse_terminator(current, scanner)) {
-			goto fail;
-		}
-		task_list_append(&tasks, current);
 	}
 	return tasks;
-fail:
-	task_list_delete(tasks);
-	task_delete(current);
-	return NULL;
 }
