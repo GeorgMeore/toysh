@@ -55,15 +55,15 @@ exec_bg(int argc, char **argv)
 static int
 redirect(char *file, int flags, int which)
 {
-	int old, new;
-	old = dup(which);
+	int old = dup(which);
 	if (file) {
-		new = open(file, flags, 0666);
+		int new = open(file, flags, 0666);
 		if (new == -1) {
 			perror("error: open");
 		}
 		close(which);
 		dup2(new, which);
+		close(new);
 	}
 	return old;
 }
@@ -92,6 +92,7 @@ sched(const struct task *tsk)
 		}
 		for (i = 0; i < 2; i++) {
 			dup2(oldfd[i], i);
+			close(oldfd[i]);
 		}
 		tsk = tsk->next;
 	}
