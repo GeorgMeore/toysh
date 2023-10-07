@@ -115,7 +115,7 @@ argbuf_is_empty(const struct argbuf *buf)
 	return !buf->argc;
 }
 
-/* parse command and arguments */
+/* parse_arguments ::= word {word} */
 static int
 parse_arguments(struct task *tsk, const struct token **scanner)
 {
@@ -170,7 +170,7 @@ redirection_flags(enum token_type rd_type)
 	}
 }
 
-/* parse output rediretions */
+/* redirections ::= {('>' | '>>' | '<') word} */
 static int
 parse_redirections(struct task *tsk, const struct token **scanner)
 {
@@ -192,7 +192,7 @@ parse_redirections(struct task *tsk, const struct token **scanner)
 	return 1;
 }
 
-/* parse terminator tokens (there is only '&' for now) */
+/* terminator ::= ['&'] */
 static int
 parse_terminator(struct task *tsk, const struct token **scanner)
 {
@@ -207,6 +207,7 @@ parse_terminator(struct task *tsk, const struct token **scanner)
 	return 1;
 }
 
+/* command ::= args redirections terminator */
 struct task *
 parse(const struct token *toks)
 {
