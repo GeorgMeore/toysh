@@ -27,14 +27,24 @@ static int bfork()
 	return 0;
 }
 
+static int bexit(int argc, char **argv)
+{
+	if (argc == 1) {
+		exit(0);
+	} else {
+		exit(atoi(argv[1]));
+	}
+}
+
 struct table_entry {
 	char *name;
 	builtin fn;
 };
 
 static struct table_entry builtin_table[] = {
-	{ "cd",   cd },
-	{ "fork", bfork }
+	{ "cd",   cd    },
+	{ "fork", bfork },
+	{ "exit", bexit },
 };
 
 #define TABLESIZE (sizeof(builtin_table) / sizeof(*builtin_table))
