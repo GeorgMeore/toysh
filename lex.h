@@ -8,7 +8,7 @@ enum token_type {
 	tok_lt,   /* < redirect stdin */
 	tok_ggt,  /* >> redirect stdout (append) */
 	tok_err,  /* lexical error */
-	tok_eol  /* end of line */
+	tok_eol   /* end of line */
 };
 
 /* TODO: implement other tokens */
