@@ -4,18 +4,29 @@
 #include "builtins.h"
 #include "util.h"
 
-static int cd(int argc, char **argv)
+static int
+cd(int argc, char **argv)
 {
 	if (argc == 1) {
 		return chdir(getenv("HOME"));
-	} else {
+	} if (argc == 2) {
 		return chdir(argv[1]);
+	} else {
+		fputs("cd: too many arguments\n", stderr);
+		return -1;
 	}
 }
 
-static int bfork()
+static int
+bfork(int argc, char **argv)
 {
-	int pid = fork();
+	int pid;
+	(void)argv; /* ignore */
+	if (argc > 1) {
+		fputs("fork: too many arguments\n", stderr);
+		return -1;
+	}
+	pid = fork();
 	if (pid == -1) {
 		perror("error: fork");
 		return -1;
@@ -27,12 +38,16 @@ static int bfork()
 	return 0;
 }
 
-static int bexit(int argc, char **argv)
+static int
+bexit(int argc, char **argv)
 {
 	if (argc == 1) {
 		exit(0);
-	} else {
+	} else if (argc == 2) {
 		exit(atoi(argv[1]));
+	} else {
+		fputs("exit: too many arguments\n", stderr);
+		return -1;
 	}
 }
 
