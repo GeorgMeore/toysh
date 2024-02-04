@@ -192,7 +192,7 @@ parse_redirections(struct task *tsk, const struct token **scanner)
 	return 1;
 }
 
-/* terminator ::= ['&'] */
+/* terminator ::= '&' | eol */
 static int
 parse_terminator(struct task *tsk, const struct token **scanner)
 {
