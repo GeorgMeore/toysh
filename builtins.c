@@ -1,6 +1,7 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <sys/wait.h>
 #include "builtins.h"
 #include "util.h"
 
@@ -15,6 +16,24 @@ cd(int argc, char **argv)
 		fputs("cd: too many arguments\n", stderr);
 		return -1;
 	}
+}
+
+static int
+bwait(int argc, char **argv)
+{
+	int pid;
+	(void)argv; /* ignore */
+	if (argc > 1) {
+		fputs("wait: too many arguments\n", stderr);
+		return -1;
+	}
+	for (;;) {
+		pid = waitpid(-1, NULL, 0);
+		if (pid == -1) {
+			break;
+		}
+	}
+	return 0;
 }
 
 static int
@@ -60,6 +79,7 @@ static struct table_entry builtin_table[] = {
 	{ "cd",   cd    },
 	{ "fork", bfork },
 	{ "exit", bexit },
+	{ "wait", bwait },
 };
 
 #define TABLESIZE (sizeof(builtin_table) / sizeof(*builtin_table))
